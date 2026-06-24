@@ -1,3 +1,9 @@
+# Ignore all __pycache__ directories everywhere
+**/__pycache__/
+
+# Ensure __init__.py files are never ignored
+!**/__init__.py
+
 .env
 *.db
 data/extracted
