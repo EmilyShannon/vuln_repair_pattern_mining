@@ -10,3 +10,10 @@ mining/cluster
 mining/scripts/reconstruct_trees.sh
 mining/summaries
 cluster_all_modes.sh
+!mining/cluster/cluster_summaries_with_metrics.py
+!mining/cluster/process_cluster_metrics.py
+!mining/cluster/process_ccc.py
+!mining/cluster/plot_ccc.py
+!mining/cluster/utils
+mining/trees
+retrieval
