@@ -1,10 +1,9 @@
-#!/usr/bin/env python3
 """
 Dynamic Abstraction Tree Builder
 
 Key Design:
 1. Layers are DYNAMIC - determined by LLM during construction
-2. Layer count is NOT fixed - depends on trajectory complexity
+2. Layer count is NOT fixed - depends on diversity of vulnerabilities 
 3. Each layer's guidance is INDEPENDENTLY extractable for experiments
 4. Aims for STABILITY across runs
 5. STRICT length constraints and layer differentiation
@@ -17,8 +16,10 @@ import os
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
-
 from langchain_openai import ChatOpenAI
+from dotenv import load_dotenv
+
+load_dotenv() 
 
 
 # =========================
@@ -38,16 +39,6 @@ class TreeConfig:
     temperature: float = 0.0
     model: str = "gpt-5"
     tree_type: str = "repair"  # or "vulnerability"
-
-
-# class TreePromptMode:
-#     REPAIR = "repair"
-#     VULNERABILITY = "vulnerability"
-
-
-# class VulnerabilityGuidanceMode:
-#     DETAILED_SUMMARY = "detailed-summary"
-#     REPAIR_STRATEGY = "repair-strategy"
 
 
 # =========================
@@ -116,7 +107,7 @@ def get_llm(temperature: float = 0.0, max_tokens: int = 4000000):
         max_retries=3,
         openai_api_key=OPENAI_API_KEY,
         reasoning={
-            "effort":"high"
+            "effort": "high"
         },
         text={
             "verbosity": "high"
@@ -220,17 +211,11 @@ def extract_step_features(patch: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def build_leaf_nodes(patches: List[Dict[str, Any]]) -> List[TreeNode]:
-    """Convert patch info into leaf nodes"""
+    """Convert patch info into leaf nodes without enforced sorting"""
     nodes = []
     
-    def get_patch_index(p: Dict) -> int:
-        return int(p["patch_id"])
-    
-    # TODO we will not sort ours 
-    sorted_patches = sorted(patches, key=get_patch_index)
-    
-    for patch in sorted_patches:
-        patch_id = patch["patch_id"]
+    for patch in patches:
+        patch_id = str(patch["patch_id"])
         features = extract_step_features(patch)
         summary = patch.get("summary", f"Patch {patch_id}")
         raw_patch = patch.get("raw_patch", f"Patch {patch_id}")
@@ -259,15 +244,11 @@ def group_nodes_by_llm(
     nodes: List[TreeNode],
     current_depth: int,
     config: TreeConfig,
-    # tree_type: str = TreePromptMode.REPAIR
 ) -> List[List[TreeNode]]:
-    """
-    Use LLM to group nodes into semantic clusters.
-    """
+    """Use LLM to group nodes into semantic clusters."""
     if len(nodes) <= 1:
         return [nodes] if nodes else []
     
-    # KEY FIX: Force merge for small node counts
     if len(nodes) <= config.force_merge_threshold:
         print(f"  -> Force merging {len(nodes)} nodes into single group")
         return [nodes]
@@ -275,14 +256,11 @@ def group_nodes_by_llm(
     if len(nodes) <= config.min_group_size:
         return [nodes]
     
-    # Use the patch summaries (or patches at the leaves) as context for grouping, since we don't have guidance at this point
     context_lines = []
-  
     if current_depth == 1:
         for idx, node in enumerate(nodes):
             line = f"ID {idx}: {node.raw_patch}"
             context_lines.append(line)
-    
     else:
         for idx, node in enumerate(nodes):
             line = f"ID {idx}: {node.summary}"
@@ -290,7 +268,6 @@ def group_nodes_by_llm(
 
     context_text = "\n\n".join(context_lines)
     print(f"  -> Grouping context:\n{context_text}\n")
-    # Compute suggested group count
     suggested_groups = max(2, min(5, len(nodes) // 3))
     
     if config.tree_type == "vulnerability":
@@ -303,7 +280,7 @@ def group_nodes_by_llm(
         task_line = "TASK: Partition these nodes into groups by their repair strategy."
         guidance_examples = "Prefer FEWER groups if many nodes share similar repair strategies, e.g. 'input validation'."
         theme_label = "repair strategy"
-    else:  # combined
+    else:
         prompt_header = "You are grouping software vulnerabilities and their repairs into semantic clusters."
         task_line = "TASK: Partition these nodes into groups by their vulnerability type or root cause."
         guidance_examples = "Prefer FEWER groups if many nodes share similar vulnerability types or repair strategies."
@@ -314,12 +291,10 @@ def group_nodes_by_llm(
 {task_line}
 
 CRITICAL RULES:
-
 1. Do NOT create two different groups with very similar {theme_label}s. If two candidate groups would have the same underlying {theme_label}, you MUST merge them into a single group instead.
 2. Group size: {config.min_group_size}-{config.max_group_size} nodes
 3. You should produce BETWEEN 1 and {suggested_groups} groups in total.
    {guidance_examples}
-
 
 Before grouping, identify the main themes:
 1. List distinct {theme_label}s present in the nodes
@@ -329,9 +304,9 @@ NODES (ID 0 to {len(nodes) - 1}):
 {context_text}
 
 Return JSON:
-    {{
-    "reasoning": "Brief explanation - ensure to distinguish groups by {theme_label}",
-    "groups": [
+{{
+  "reasoning": "Brief explanation - ensure to distinguish groups by {theme_label}",
+  "groups": [
     {{"start": 0, "end": 2, "strategy": "unique strategy 1"}},
     {{"start": 3, "end": 5, "strategy": "unique strategy 2 (different from 1)"}}
   ]
@@ -350,7 +325,6 @@ All IDs from 0 to {len(nodes) - 1} must be covered exactly once.
         if not groups_data:
             raise ValueError("No groups returned")
         
-        # Validate coverage
         covered = set()
         for g in groups_data:
             start, end = g["start"], g["end"]
@@ -362,7 +336,6 @@ All IDs from 0 to {len(nodes) - 1} must be covered exactly once.
         if covered != set(range(len(nodes))):
             raise ValueError("Incomplete coverage")
         
-        # Build groups
         result = []
         for g in groups_data:
             group_nodes = nodes[g["start"]:g["end"] + 1]
@@ -385,14 +358,10 @@ All IDs from 0 to {len(nodes) - 1} must be covered exactly once.
 # =========================
 
 def compute_detail_level(current_depth: int, estimated_max_depth: int) -> str:
-    """
-    Compute detail level based on relative position in tree.
-    """
     if estimated_max_depth <= 1:
         return "low"
     
     relative_pos = current_depth / estimated_max_depth
-    
     if relative_pos < 0.4:
         return "high"
     elif relative_pos < 0.7:
@@ -462,27 +431,16 @@ def generate_node_guidance(
     detail_level: str,
     estimated_max_depth: int,
     config: TreeConfig,
-    existing_summaries: List[str] = None,
-    # tree_type: str = TreePromptMode.REPAIR,
-    # vuln_guidance_mode: str = VulnerabilityGuidanceMode.DETAILED_SUMMARY
 ) -> Tuple[str, str]:
-    """
-    Generate summary and guidance for a parent node.
-    Returns: (summary, guidance)
-    """
-    child_summaries = [shorten(n.summary, 80) for n in children]
+    """Generate summary and guidance for a parent node."""
+    child_summaries = [n.summary for n in children]
     group_labels = [n.features.get("group_label", "") for n in children if n.features.get("group_label")]
     all_steps = [s for n in children for s in n.steps]
     
-    # Limit context size
     context_lines = [f"- {s}" for s in child_summaries[:6]]
     context_text = "\n".join(context_lines)
-    
-    # Get layer-specific context
     layer_context = get_layer_context(current_depth, estimated_max_depth, config.tree_type)
     
-        # Word limits based on detail level
-    # Word limits based on detail level
     if detail_level == "high":
         max_words = 60
     elif detail_level == "medium":
@@ -509,30 +467,23 @@ Guidance: "Apply strict boundary validation to externally controlled input and e
 GOOD (low, ~25 words):
 Summary: "Enforce defensive handling of untrusted input."
 Guidance: "Process externally influenced data only within validated operational constraints to preserve memory safety."
-
 """
     elif config.tree_type == "vulnerability":
         summary_goal = "Generate a concise vulnerability summary for this group."
-        # if vuln_guidance_mode == VulnerabilityGuidanceMode.DETAILED_SUMMARY:
         guidance_goal = "Generate a more detailed description of the vulnerability."
         detail_instruction = f"""DETAIL: {detail_level.upper()}
 - Describe the vulnerability at the appropriate level of abstraction.
-- Focus on the underlying weakness, conditions, and impact.
-- Avoid programming language constructs, specific API names, or overly procedural steps."""
+- Focus on the underlying weakness, conditions, and impact."""
         examples_string = """
 GOOD (high, ~50 words):
 Summary: "Improper validation of externally supplied input lengths leads to buffer overflow."
-Guidance: "When code copies externally supplied data based on a length value that is not validated, an attacker can provide a larger size than the buffer can hold, causing memory corruption and potential execution control."
+Guidance: "Ensure all externally provided length values are validated against fixed capacity limits before performing memory operations. Restrict data handling to the validated size and explicitly terminate copied input to prevent overflow from unterminated or malformed data."
 
 GOOD (medium, ~35 words):
 Summary: "Failure to validate input lengths allows buffer overflow."
-Guidance: "A missing check on externally controlled size values means buffer copies can exceed allocated storage, which may overwrite adjacent memory and allow an attacker to corrupt program state."
-
-GOOD (low, ~25 words):
-Summary: "Unchecked input length handling creates overflow risk."
-Guidance: "Unverified size information can lead to unsafe memory operations and buffer overflow when external input is treated as safe."
+Guidance: "Enforce strict validation of externally provided length values and constrain data handling to verified limits to prevent unsafe memory access conditions."
 """
-    else: # summary is of the vulnerability, but guidance is about the repair strategy
+    else:
         summary_goal = "Generate a concise vulnerability summary for this group."
         guidance_goal = "Generate guidance describing the repair strategy for this vulnerability."
         detail_instruction = f"""DETAIL: {detail_level.upper()}
@@ -540,61 +491,11 @@ Guidance: "Unverified size information can lead to unsafe memory operations and 
 - For the guidance, describe the repair strategy at the appropriate level of abstraction, focusing on defensive safeguards, validation behavior, or high-level methodology.
 - Avoid programming language constructs, specific API names, or overly procedural steps in both summary and guidance."""
         examples_string = """
-GOOD (high, ~50 words):
+GOOD (medium, ~40 words):
 Summary: "Improper validation of externally supplied input lengths leads to buffer overflow."
 Guidance: "Verify externally provided length values before performing memory operations, restrict transfers to validated boundaries, and ensure copied data is safely terminated to prevent overflow from malformed or unterminated input."
-
-GOOD (medium, ~35 words):
-Summary: "Failure to validate input lengths allows buffer overflow."
-Guidance: "Apply strict boundary validation to externally controlled input and ensure data handling operations remain limited to verified safe ranges."
-
-GOOD (low, ~25 words):
-Summary: "Unchecked input length handling creates overflow risk."
-Guidance: "Process externally influenced data only within validated operational constraints to preserve memory safety."
 """
 
-    # TODO uniqueness constraint doesn't make sense for us     
-
-    # Build uniqueness constraint if we have existing summaries
-    uniqueness_hint = ""
-    if existing_summaries:
-        uniqueness_hint = f"""
-UNIQUENESS: Your summary AND guidance must be meaningfully different
-from the following existing summaries. Do NOT repeat the same pattern:
-{chr(10).join(['- ' + s for s in existing_summaries[:5]])}
-
-"""
-
-# TODO it actually makes no sense to have guidance for vulnerability-only tree, maybe have just a summary+ more detailed summary
-    if config.tree_type == "vulnerability":
-        examples_string = """GOOD (high, ~50 words):
-Summary: "Improper validation of externally supplied input lengths leads to buffer overflow."
-Guidance: "Ensure all externally provided length values are validated against fixed capacity limits before performing memory operations. Restrict data handling to the validated size and explicitly terminate copied input to prevent overflow from unterminated or malformed data."
-GOOD (medium, ~35 words):
-Summary: "Failure to validate input lengths allows buffer overflow."
-Guidance: "Enforce strict validation of externally provided length values and constrain data handling to verified limits to prevent unsafe memory access conditions."""         
-    
-    elif config.tree_type == "repair":
-        examples_string = """
-GOOD (high, ~50 words):
-Summary: "Validate externally supplied buffer sizes."
-Guidance: "Verify externally provided length values before performing memory operations, restrict transfers to validated boundaries, and ensure copied input is safely terminated to prevent overflow from malformed or unterminated data."
-
-GOOD (medium, ~35 words):
-Summary: "Constrain untrusted data to validated boundaries."
-Guidance: "Apply strict boundary validation to externally controlled input and ensure data handling operations remain limited to verified safe ranges."
-
-GOOD (low, ~25 words):
-Summary: "Enforce defensive handling of untrusted input."
-Guidance: "Process externally influenced data only within validated operational constraints to preserve memory safety."
-
-BAD (too implementation-specific for abstract layers):
-"Call copy functions with validated sizes and manually append termination characters before parsing."
-
-BAD (too procedural):
-"Step 1: Run grep... Step 2: Open file... Things to look for: - item 1 - item 2..."
-"""
-    
     prompt = f"""Generate a CONCISE summary and guidance.
 
 {layer_context}
@@ -608,10 +509,8 @@ BAD (too procedural):
 4. NO commands (grep, ls, find)
 5. NO file paths
 6. Write as flowing prose
-{uniqueness_hint}
 
 ===== EXAMPLES =====
-
 {examples_string}
 
 ===== CHILD NODES ({len(children)} items, {len(all_steps)} steps) =====
@@ -632,14 +531,12 @@ Return ONLY JSON:
         summary = data.get("summary", "")
         guidance = data.get("guidance", "")
         
-        # Post-process
         summary = enforce_word_limit(summary, 20)
         guidance = enforce_word_limit(guidance, max_words + 15)
         guidance = remove_bullet_formatting(guidance)
         
         if not summary:
             summary = f"[FALLBACK] Vulnerability repair patterns across {len(children)} related cases"
-
         if not guidance:
             guidance = "[FALLBACK] Apply defensive validation and constrain unsafe behavior through consistent repair safeguards."
         
@@ -654,12 +551,13 @@ Return ONLY JSON:
             summary = f"[FALLBACK] Vulnerability repair patterns across {len(children)} related cases"
 
         guidance = "[FALLBACK] Apply defensive validation and constrain unsafe behavior through consistent repair safeguards."
-        
         return summary, guidance
+
 
 def _step_index(step_id: str) -> int:
     m = re.search(r"(\d+)$", step_id)
     return int(m.group(1)) if m else 0
+
 
 def abstract_group(
     children: List[TreeNode],
@@ -667,14 +565,10 @@ def abstract_group(
     detail_level: str,
     estimated_max_depth: int,
     config: TreeConfig,
-    existing_summaries: List[str] = None,
-    # tree_type: str = TreePromptMode.REPAIR,
-    # vuln_guidance_mode: str = VulnerabilityGuidanceMode.DETAILED_SUMMARY
 ) -> TreeNode:
     """Create a parent node from a group of children."""
-    
     summary, guidance = generate_node_guidance(
-        children, new_depth, detail_level, estimated_max_depth, config, existing_summaries
+        children, new_depth, detail_level, estimated_max_depth, config
     )
     
     all_steps = [s for n in children for s in n.steps]
@@ -723,12 +617,8 @@ def estimate_max_depth(num_leaves: int, config: TreeConfig) -> int:
 def build_tree(
     patches: List[Dict[str, Any]],
     config: Optional[TreeConfig] = None,
-    # tree_type: str = TreePromptMode.REPAIR,
-    # vuln_guidance_mode: str = VulnerabilityGuidanceMode.DETAILED_SUMMARY
 ) -> Tuple[TreeNode, Dict[str, TreeNode], int]:
-    """
-    Build abstraction tree dynamically.
-    """
+    """Build abstraction tree dynamically."""
     if config is None:
         config = TreeConfig()
     
@@ -737,72 +627,54 @@ def build_tree(
     print(f"{'='*60}\n")
     
     all_nodes: Dict[str, TreeNode] = {}
-    
     estimated_max_depth = estimate_max_depth(len(patches), config)
     print(f"Estimated max depth: {estimated_max_depth}")
     
-    # Build leaf nodes (depth 0)
     print(f"\n[Depth 0] Building {len(patches)} leaf nodes...")
-    
     current_nodes = build_leaf_nodes(patches)
     
     for node in current_nodes:
         all_nodes[node.node_id] = node
     
-    # Iteratively build higher levels
     current_depth = 1
-    
     while len(current_nodes) > 1 and current_depth <= config.max_depth:
         print(f"\n[Depth {current_depth}] Processing {len(current_nodes)} nodes...")
-        if len(current_nodes) == 2:
-            print(f"  -> Exactly 2 nodes remaining, forcing merge to single root")
-            groups = [current_nodes]
-        elif len(current_nodes) <= config.force_merge_threshold:
-            print(f"  -> Only {len(current_nodes)} nodes, forcing final merge")
+        if len(current_nodes) == 2 or len(current_nodes) <= config.force_merge_threshold:
+            print(f"  -> Only {len(current_nodes)} nodes, forcing merge")
             groups = [current_nodes]
         else:
-            # Group nodes
             groups = group_nodes_by_llm(current_nodes, current_depth, config)
         
         print(f"  -> Formed {len(groups)} groups")
         
-        # Check if grouping made progress
         if len(groups) >= len(current_nodes) and len(current_nodes) > 1:
             print("  -> No reduction, forcing merge")
             groups = [current_nodes]
         
-        # Track summaries to avoid duplicates
-        existing_summaries = []
-        
-        # Abstract each group
         detail_level = compute_detail_level(current_depth, estimated_max_depth)
         next_level = []
         
         for i, group in enumerate(groups):
             parent = abstract_group(
-                group, current_depth, detail_level, estimated_max_depth, config, existing_summaries
+                group, current_depth, detail_level, estimated_max_depth, config
             )
             next_level.append(parent)
             all_nodes[parent.node_id] = parent
-            existing_summaries.append(parent.summary)
             print(f"    Group {i}: {len(group)} nodes -> '{shorten(parent.summary, 50)}'")
         
         current_nodes = next_level
         current_depth += 1
     
-    # Handle final root
     if len(current_nodes) > 1:
         print(f"\n[Final] Merging {len(current_nodes)} nodes into root...")
         root = abstract_group(
-            current_nodes, current_depth, "low", estimated_max_depth, config, existing_summaries
+            current_nodes, current_depth, "low", estimated_max_depth, config
         )
         current_depth += 1
     else:
         root = current_nodes[0]
     
-    
     final_depth = root.depth
-    
     print(f"\n{'='*60}")
     print(f"Tree Complete")
     print(f"  Total nodes: {len(all_nodes)}")
@@ -821,7 +693,6 @@ def extract_layer_guidance(
     target_depth: int
 ) -> LayerGuidance:
     """Extract guidance for all nodes at a specific depth."""
-    
     layer_nodes = [n for n in all_nodes.values() if n.depth == target_depth]
     layer_nodes.sort(key=lambda n: min((_step_index(s) for s in n.steps), default=0))
     
@@ -872,30 +743,30 @@ def create_experiment_package(
     total_steps: int,
     max_depth: int
 ) -> ExperimentPackage:
-    """Create complete experiment package with all layers."""
+    """Extracts guidance details layer by layer and packages them into an ExperimentPackage."""
+    layer_guidances: Dict[int, LayerGuidance] = {}
+    layer_stats: List[Dict[str, Any]] = []
     
-    layer_guidances = {}
-    layer_stats = []
-    
-    for depth in range(1, max_depth + 1):
-        layer_guidance = extract_layer_guidance(all_nodes, depth)
+    # Traverse through all valid abstraction layers starting from depth 1 up to the max tree depth
+    for current_depth in range(1, max_depth + 1):
+        layer_data = extract_layer_guidance(all_nodes, current_depth)
         
-        if layer_guidance.node_count > 0:
-            layer_guidances[depth] = layer_guidance
+        # Keep track of structural details only if the layer actually holds processed elements
+        if layer_data.node_count > 0:
+            layer_guidances[current_depth] = layer_data
             layer_stats.append({
-                "depth": depth,
-                "node_count": layer_guidance.node_count,
-                "steps_covered": layer_guidance.total_steps_covered,
+                "layer_depth": current_depth,
+                "node_count": layer_data.node_count,
+                "total_steps_covered": layer_data.total_steps_covered
             })
-    
+
     return ExperimentPackage(
         cwe_id=cwe_id,
         total_steps=total_steps,
         tree_depth=max_depth,
         layer_guidances=layer_guidances,
-        layer_stats=layer_stats,
+        layer_stats=layer_stats
     )
-
 
 # =========================
 #  SERIALIZATION

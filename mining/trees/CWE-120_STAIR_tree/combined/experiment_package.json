@@ -9,32 +9,32 @@
       "total_steps_covered": 9,
       "guidances": [
         {
-          "node_id": "L1_315c3df2",
-          "summary": "Unvalidated external input sizes against buffer capacity enable overflow and memory corruption.",
-          "guidance": "Before any buffer operation, compare the provided length to the actual capacity and bound the operation to the smaller value. Allocate space for the worst-case expansion plus terminators, reject or safely truncate oversized input, and validate string length before indexing or concatenation to prevent out-of-bounds access.",
+          "node_id": "L1_9d5005c8",
+          "summary": "Unvalidated length fields and undersized buffers allow overflow and memory corruption.",
+          "guidance": "Validate declared sizes against buffer capacity, compute effective copy length as the minimum of available space and input size, and reject or truncate when limits are exceeded. Allocate buffers for worst-case input plus delimiters, detect size arithmetic overflow, and explicitly terminate written data to prevent overflow and unterminated states.",
           "steps_covered": [
             "323",
             "451",
             "456",
-            "510",
-            "3848"
-          ],
-          "num_steps": 5
-        },
-        {
-          "node_id": "L1_a42fa9e0",
-          "summary": "Configuration field copying of externally supplied data lacks size enforcement, allowing overwrite of adjacent memory.",
-          "guidance": "Measure incoming configuration lengths before transfer, compare against fixed capacity, and restrict copying to the validated limit with explicit termination; reject out-of-range codes and overlong records, or provision larger bounded storage to the documented maximum so accepted inputs cannot exceed capacity.",
-          "steps_covered": [
-            "5165",
-            "6293",
-            "6342",
-            "6348"
+            "510"
           ],
           "num_steps": 4
+        },
+        {
+          "node_id": "L1_6465b436",
+          "summary": "Missing length and range checks enable buffer overflows and out-of-bounds access.",
+          "guidance": "Validate incoming length fields and code values against strict maximums before any access or copy, rejecting or truncating at safe limits, and ensure copied data is explicitly terminated. Allocate buffers for the largest accepted payload plus terminators, apply bounds-checked transfers to configuration data, and guard against integer overflow in size calculations.",
+          "steps_covered": [
+            "3848",
+            "6348",
+            "5165",
+            "6293",
+            "6342"
+          ],
+          "num_steps": 5
         }
       ],
-      "formatted_prompt": "# Layer 1 Guidance\n*2 guidance items at depth 1*\n\n## Item 1: Unvalidated external input sizes against buffer capacity enable overflow and memory corruption.\n\n**Guidance:**\nBefore any buffer operation, compare the provided length to the actual capacity and bound the operation to the smaller value. Allocate space for the worst-case expansion plus terminators, reject or safely truncate oversized input, and validate string length before indexing or concatenation to prevent out-of-bounds access.\n\n*Covers 5 original steps*\n\n## Item 2: Configuration field copying of externally supplied data lacks size enforcement, allowing overwrite of adjacent memory.\n\n**Guidance:**\nMeasure incoming configuration lengths before transfer, compare against fixed capacity, and restrict copying to the validated limit with explicit termination; reject out-of-range codes and overlong records, or provision larger bounded storage to the documented maximum so accepted inputs cannot exceed capacity.\n\n*Covers 4 original steps*\n"
+      "formatted_prompt": "# Layer 1 Guidance\n*2 guidance items at depth 1*\n\n## Item 1: Unvalidated length fields and undersized buffers allow overflow and memory corruption.\n\n**Guidance:**\nValidate declared sizes against buffer capacity, compute effective copy length as the minimum of available space and input size, and reject or truncate when limits are exceeded. Allocate buffers for worst-case input plus delimiters, detect size arithmetic overflow, and explicitly terminate written data to prevent overflow and unterminated states.\n\n*Covers 4 original steps*\n\n## Item 2: Missing length and range checks enable buffer overflows and out-of-bounds access.\n\n**Guidance:**\nValidate incoming length fields and code values against strict maximums before any access or copy, rejecting or truncating at safe limits, and ensure copied data is explicitly terminated. Allocate buffers for the largest accepted payload plus terminators, apply bounds-checked transfers to configuration data, and guard against integer overflow in size calculations.\n\n*Covers 5 original steps*\n"
     },
     "2": {
       "layer_depth": 2,
@@ -42,36 +42,36 @@
       "total_steps_covered": 9,
       "guidances": [
         {
-          "node_id": "L2_ba6d2a04",
-          "summary": "Missing size validation on external data copied into configuration fields causes overflow and memory corruption.",
-          "guidance": "Apply strict boundary validation and enforce size limits on all externally sourced configuration data, rejecting or safely constraining excess. Centralize validation and propagate verified sizes through data handling to maintain consistent protections during processing, storage, and transmission.",
+          "node_id": "L2_f948481c",
+          "summary": "Unvalidated size metadata from untrusted inputs enables out-of-bounds writes and memory corruption.",
+          "guidance": "Perform strict length verification, cross-validate reported sizes with actual content and available storage, and cap operations to verified limits. Derive resource allocation from validated maxima, adopt fail-closed behavior, and reject malformed or inconsistent records to prevent unsafe access.",
           "steps_covered": [
-            "323",
-            "451",
-            "456",
-            "510",
             "3848",
+            "6348",
             "5165",
             "6293",
             "6342",
-            "6348"
+            "323",
+            "451",
+            "456",
+            "510"
           ],
           "num_steps": 9
         }
       ],
-      "formatted_prompt": "# Layer 2 Guidance\n*1 guidance items at depth 2*\n\n## Item 1: Missing size validation on external data copied into configuration fields causes overflow and memory corruption.\n\n**Guidance:**\nApply strict boundary validation and enforce size limits on all externally sourced configuration data, rejecting or safely constraining excess. Centralize validation and propagate verified sizes through data handling to maintain consistent protections during processing, storage, and transmission.\n\n*Covers 9 original steps*\n"
+      "formatted_prompt": "# Layer 2 Guidance\n*1 guidance items at depth 2*\n\n## Item 1: Unvalidated size metadata from untrusted inputs enables out-of-bounds writes and memory corruption.\n\n**Guidance:**\nPerform strict length verification, cross-validate reported sizes with actual content and available storage, and cap operations to verified limits. Derive resource allocation from validated maxima, adopt fail-closed behavior, and reject malformed or inconsistent records to prevent unsafe access.\n\n*Covers 9 original steps*\n"
     }
   },
   "layer_stats": [
     {
-      "depth": 1,
+      "layer_depth": 1,
       "node_count": 2,
-      "steps_covered": 9
+      "total_steps_covered": 9
     },
     {
-      "depth": 2,
+      "layer_depth": 2,
       "node_count": 1,
-      "steps_covered": 9
+      "total_steps_covered": 9
     }
   ]
 }

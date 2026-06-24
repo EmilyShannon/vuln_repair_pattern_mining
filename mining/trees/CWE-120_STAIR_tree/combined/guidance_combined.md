@@ -6,19 +6,19 @@
 # Layer 1 Guidance
 *2 guidance items at depth 1*
 
-## Item 1: Unvalidated external input sizes against buffer capacity enable overflow and memory corruption.
+## Item 1: Unvalidated length fields and undersized buffers allow overflow and memory corruption.
 
 **Guidance:**
-Before any buffer operation, compare the provided length to the actual capacity and bound the operation to the smaller value. Allocate space for the worst-case expansion plus terminators, reject or safely truncate oversized input, and validate string length before indexing or concatenation to prevent out-of-bounds access.
-
-*Covers 5 original steps*
-
-## Item 2: Configuration field copying of externally supplied data lacks size enforcement, allowing overwrite of adjacent memory.
-
-**Guidance:**
-Measure incoming configuration lengths before transfer, compare against fixed capacity, and restrict copying to the validated limit with explicit termination; reject out-of-range codes and overlong records, or provision larger bounded storage to the documented maximum so accepted inputs cannot exceed capacity.
+Validate declared sizes against buffer capacity, compute effective copy length as the minimum of available space and input size, and reject or truncate when limits are exceeded. Allocate buffers for worst-case input plus delimiters, detect size arithmetic overflow, and explicitly terminate written data to prevent overflow and unterminated states.
 
 *Covers 4 original steps*
+
+## Item 2: Missing length and range checks enable buffer overflows and out-of-bounds access.
+
+**Guidance:**
+Validate incoming length fields and code values against strict maximums before any access or copy, rejecting or truncating at safe limits, and ensure copied data is explicitly terminated. Allocate buffers for the largest accepted payload plus terminators, apply bounds-checked transfers to configuration data, and guard against integer overflow in size calculations.
+
+*Covers 5 original steps*
 
 
 ---
@@ -26,9 +26,9 @@ Measure incoming configuration lengths before transfer, compare against fixed ca
 # Layer 2 Guidance
 *1 guidance items at depth 2*
 
-## Item 1: Missing size validation on external data copied into configuration fields causes overflow and memory corruption.
+## Item 1: Unvalidated size metadata from untrusted inputs enables out-of-bounds writes and memory corruption.
 
 **Guidance:**
-Apply strict boundary validation and enforce size limits on all externally sourced configuration data, rejecting or safely constraining excess. Centralize validation and propagate verified sizes through data handling to maintain consistent protections during processing, storage, and transmission.
+Perform strict length verification, cross-validate reported sizes with actual content and available storage, and cap operations to verified limits. Derive resource allocation from validated maxima, adopt fail-closed behavior, and reject malformed or inconsistent records to prevent unsafe access.
 
 *Covers 9 original steps*
