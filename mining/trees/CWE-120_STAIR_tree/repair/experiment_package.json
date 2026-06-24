@@ -1,0 +1,85 @@
+{
+  "cwe_id": "CWE-120",
+  "total_steps": 9,
+  "tree_depth": 2,
+  "layer_guidances": {
+    "1": {
+      "layer_depth": 1,
+      "node_count": 3,
+      "total_steps_covered": 9,
+      "guidances": [
+        {
+          "node_id": "L1_ef22ad6b",
+          "summary": "Validate lengths, restrict copies to capacity, and allocate for worst case with terminator.",
+          "guidance": "Before any buffer operation, obtain destination capacity and validate input size, compute the permitted amount as the smaller of these after reserving space for a terminator, and restrict the transfer to that amount while explicitly terminating. Size allocations using the maximum possible input expansion and include headroom for delimiters and worst-case growth.",
+          "steps_covered": [
+            "323",
+            "451",
+            "456"
+          ],
+          "num_steps": 3
+        },
+        {
+          "node_id": "L1_eca2c3f4",
+          "summary": "Harden input handling with capacity verification and guarded transfers to avert memory overruns.",
+          "guidance": "Before indexing or copying, compare untrusted length fields with actual buffer capacity and clamp to safe limits; refuse malformed input and log errors. Perform copies and text access only within these verified bounds, guarantee explicit termination after truncation, and treat absent terminators or size mismatches as validation failures.",
+          "steps_covered": [
+            "510",
+            "3848",
+            "5165",
+            "6293"
+          ],
+          "num_steps": 4
+        },
+        {
+          "node_id": "L1_508befc7",
+          "summary": "Enforce code bounds and resize buffers to accommodate maximal mapping size.",
+          "guidance": "Pre-validate each code against an explicit upper bound before lookup or translation, rejecting out-of-range values. Expand storage to cover the longest accepted representation and halt processing when the calculated footprint would exceed that capacity.",
+          "steps_covered": [
+            "6342",
+            "6348"
+          ],
+          "num_steps": 2
+        }
+      ],
+      "formatted_prompt": "# Layer 1 Guidance\n*3 guidance items at depth 1*\n\n## Item 1: Validate lengths, restrict copies to capacity, and allocate for worst case with terminator.\n\n**Guidance:**\nBefore any buffer operation, obtain destination capacity and validate input size, compute the permitted amount as the smaller of these after reserving space for a terminator, and restrict the transfer to that amount while explicitly terminating. Size allocations using the maximum possible input expansion and include headroom for delimiters and worst-case growth.\n\n*Covers 3 original steps*\n\n## Item 2: Harden input handling with capacity verification and guarded transfers to avert memory overruns.\n\n**Guidance:**\nBefore indexing or copying, compare untrusted length fields with actual buffer capacity and clamp to safe limits; refuse malformed input and log errors. Perform copies and text access only within these verified bounds, guarantee explicit termination after truncation, and treat absent terminators or size mismatches as validation failures.\n\n*Covers 4 original steps*\n\n## Item 3: Enforce code bounds and resize buffers to accommodate maximal mapping size.\n\n**Guidance:**\nPre-validate each code against an explicit upper bound before lookup or translation, rejecting out-of-range values. Expand storage to cover the longest accepted representation and halt processing when the calculated footprint would exceed that capacity.\n\n*Covers 2 original steps*\n"
+    },
+    "2": {
+      "layer_depth": 2,
+      "node_count": 1,
+      "total_steps_covered": 9,
+      "guidances": [
+        {
+          "node_id": "L2_a71d9673",
+          "summary": "Validate sizes, bound data handling, and provision capacity for worst-case input and mapping sizes",
+          "guidance": "Apply strict capacity validation to externally influenced sizes and constrain data movement to verified limits. Provision storage for the maximum legitimate mapping scope, and fail safely when requested sizes exceed permissible bounds.",
+          "steps_covered": [
+            "323",
+            "451",
+            "456",
+            "510",
+            "3848",
+            "5165",
+            "6293",
+            "6342",
+            "6348"
+          ],
+          "num_steps": 9
+        }
+      ],
+      "formatted_prompt": "# Layer 2 Guidance\n*1 guidance items at depth 2*\n\n## Item 1: Validate sizes, bound data handling, and provision capacity for worst-case input and mapping sizes\n\n**Guidance:**\nApply strict capacity validation to externally influenced sizes and constrain data movement to verified limits. Provision storage for the maximum legitimate mapping scope, and fail safely when requested sizes exceed permissible bounds.\n\n*Covers 9 original steps*\n"
+    }
+  },
+  "layer_stats": [
+    {
+      "depth": 1,
+      "node_count": 3,
+      "steps_covered": 9
+    },
+    {
+      "depth": 2,
+      "node_count": 1,
+      "steps_covered": 9
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+.env
+*.db
+data/extracted
+data/raw
+clusters
+data/analysis/plots
+mining/cluster/cluster_metric_plots
+mining/cluster/clusters
+mining/cluster
+mining/scripts/reconstruct_trees.sh
+mining/summaries
+cluster_all_modes.sh

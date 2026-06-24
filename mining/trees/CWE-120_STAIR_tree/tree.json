@@ -1,0 +1,277 @@
+{
+  "root": "L1_b83ebead",
+  "max_depth": 1,
+  "total_nodes": 10,
+  "nodes": {
+    "leaf_3848": {
+      "node_id": "leaf_3848",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "3848"
+      ],
+      "summary": "[unknown] ",
+      "guidance": null,
+      "features": {
+        "kind": "unknown",
+        "files": [],
+        "summary_in": "",
+        "summary_out": "",
+        "reasoning_observe": "",
+        "reasoning_think": "",
+        "reasoning_plan": "",
+        "tool_name": "",
+        "tool_args": {},
+        "group_strategy": "Unclassified/Unknown \u2013 insufficient information to determine repair strategy; provisional holding group pending node details"
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "3848"
+      }
+    },
+    "leaf_6348": {
+      "node_id": "leaf_6348",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "6348"
+      ],
+      "summary": "[unknown] ",
+      "guidance": null,
+      "features": {
+        "kind": "unknown",
+        "files": [],
+        "summary_in": "",
+        "summary_out": "",
+        "reasoning_observe": "",
+        "reasoning_think": "",
+        "reasoning_plan": "",
+        "tool_name": "",
+        "tool_args": {},
+        "group_strategy": "Unclassified/Unknown \u2013 insufficient information to determine repair strategy; provisional holding group pending node details"
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "6348"
+      }
+    },
+    "leaf_5165": {
+      "node_id": "leaf_5165",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "5165"
+      ],
+      "summary": "[unknown] ",
+      "guidance": null,
+      "features": {
+        "kind": "unknown",
+        "files": [],
+        "summary_in": "",
+        "summary_out": "",
+        "reasoning_observe": "",
+        "reasoning_think": "",
+        "reasoning_plan": "",
+        "tool_name": "",
+        "tool_args": {},
+        "group_strategy": "Unclassified/Unknown \u2013 insufficient information to determine repair strategy; provisional holding group pending node details"
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "5165"
+      }
+    },
+    "leaf_6293": {
+      "node_id": "leaf_6293",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "6293"
+      ],
+      "summary": "[unknown] ",
+      "guidance": null,
+      "features": {
+        "kind": "unknown",
+        "files": [],
+        "summary_in": "",
+        "summary_out": "",
+        "reasoning_observe": "",
+        "reasoning_think": "",
+        "reasoning_plan": "",
+        "tool_name": "",
+        "tool_args": {},
+        "group_strategy": "Unclassified/Unknown \u2013 insufficient information to determine repair strategy; provisional holding group pending node details"
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "6293"
+      }
+    },
+    "leaf_6342": {
+      "node_id": "leaf_6342",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "6342"
+      ],
+      "summary": "[unknown] ",
+      "guidance": null,
+      "features": {
+        "kind": "unknown",
+        "files": [],
+        "summary_in": "",
+        "summary_out": "",
+        "reasoning_observe": "",
+        "reasoning_think": "",
+        "reasoning_plan": "",
+        "tool_name": "",
+        "tool_args": {},
+        "group_strategy": "Unclassified/Unknown \u2013 insufficient information to determine repair strategy; provisional holding group pending node details"
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "6342"
+      }
+    },
+    "leaf_323": {
+      "node_id": "leaf_323",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "323"
+      ],
+      "summary": "[unknown] ",
+      "guidance": null,
+      "features": {
+        "kind": "unknown",
+        "files": [],
+        "summary_in": "",
+        "summary_out": "",
+        "reasoning_observe": "",
+        "reasoning_think": "",
+        "reasoning_plan": "",
+        "tool_name": "",
+        "tool_args": {},
+        "group_strategy": "Unclassified/Unknown \u2013 insufficient information to determine repair strategy; provisional holding group pending node details"
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "323"
+      }
+    },
+    "leaf_451": {
+      "node_id": "leaf_451",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "451"
+      ],
+      "summary": "[unknown] ",
+      "guidance": null,
+      "features": {
+        "kind": "unknown",
+        "files": [],
+        "summary_in": "",
+        "summary_out": "",
+        "reasoning_observe": "",
+        "reasoning_think": "",
+        "reasoning_plan": "",
+        "tool_name": "",
+        "tool_args": {},
+        "group_strategy": "Unclassified/Unknown \u2013 insufficient information to determine repair strategy; provisional holding group pending node details"
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "451"
+      }
+    },
+    "leaf_456": {
+      "node_id": "leaf_456",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "456"
+      ],
+      "summary": "[unknown] ",
+      "guidance": null,
+      "features": {
+        "kind": "unknown",
+        "files": [],
+        "summary_in": "",
+        "summary_out": "",
+        "reasoning_observe": "",
+        "reasoning_think": "",
+        "reasoning_plan": "",
+        "tool_name": "",
+        "tool_args": {},
+        "group_strategy": "Unclassified/Unknown \u2013 insufficient information to determine repair strategy; provisional holding group pending node details"
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "456"
+      }
+    },
+    "leaf_510": {
+      "node_id": "leaf_510",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "510"
+      ],
+      "summary": "[unknown] ",
+      "guidance": null,
+      "features": {
+        "kind": "unknown",
+        "files": [],
+        "summary_in": "",
+        "summary_out": "",
+        "reasoning_observe": "",
+        "reasoning_think": "",
+        "reasoning_plan": "",
+        "tool_name": "",
+        "tool_args": {},
+        "group_strategy": "Unclassified/Unknown \u2013 insufficient information to determine repair strategy; provisional holding group pending node details"
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "510"
+      }
+    },
+    "L1_b83ebead": {
+      "node_id": "L1_b83ebead",
+      "depth": 1,
+      "children": [
+        "leaf_3848",
+        "leaf_6348",
+        "leaf_5165",
+        "leaf_6293",
+        "leaf_6342",
+        "leaf_323",
+        "leaf_451",
+        "leaf_456",
+        "leaf_510"
+      ],
+      "steps": [
+        "3848",
+        "6348",
+        "5165",
+        "6293",
+        "6342",
+        "323",
+        "451",
+        "456",
+        "510"
+      ],
+      "summary": "Constrain untrusted data to validated, canonicalized, and strictly bounded operational ranges.",
+      "guidance": "Canonicalize and strictly validate external input for length, type, and range; reject values exceeding limits or using malformed encodings. Limit copies, allocations, and iterations to validated bounds, explicitly terminate and clear buffers, and contextually encode outputs to their sinks to prevent injection from alternate encodings.",
+      "features": {
+        "detail_level": "high",
+        "child_count": 9
+      },
+      "provenance": {
+        "source": "abstraction",
+        "depth": 1
+      }
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "issue_id": "CWE-120",
+  "total_steps": 9,
+  "tree_depth": 1,
+  "layer_guidances": {
+    "1": {
+      "layer_depth": 1,
+      "node_count": 1,
+      "total_steps_covered": 9,
+      "guidances": [
+        {
+          "node_id": "L1_b83ebead",
+          "summary": "Constrain untrusted data to validated, canonicalized, and strictly bounded operational ranges.",
+          "guidance": "Canonicalize and strictly validate external input for length, type, and range; reject values exceeding limits or using malformed encodings. Limit copies, allocations, and iterations to validated bounds, explicitly terminate and clear buffers, and contextually encode outputs to their sinks to prevent injection from alternate encodings.",
+          "steps_covered": [
+            "3848",
+            "6348",
+            "5165",
+            "6293",
+            "6342",
+            "323",
+            "451",
+            "456",
+            "510"
+          ],
+          "num_steps": 9
+        }
+      ],
+      "formatted_prompt": "# Layer 1 Guidance\n*1 guidance items at depth 1*\n\n## Item 1: Constrain untrusted data to validated, canonicalized, and strictly bounded operational ranges.\n\n**Guidance:**\nCanonicalize and strictly validate external input for length, type, and range; reject values exceeding limits or using malformed encodings. Limit copies, allocations, and iterations to validated bounds, explicitly terminate and clear buffers, and contextually encode outputs to their sinks to prevent injection from alternate encodings.\n\n*Covers 9 original steps*\n"
+    }
+  },
+  "layer_stats": [
+    {
+      "depth": 1,
+      "node_count": 1,
+      "steps_covered": 9
+    }
+  ]
+}

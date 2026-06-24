@@ -1,0 +1,325 @@
+{
+  "root": "L2_a71d9673",
+  "max_depth": 2,
+  "total_nodes": 13,
+  "nodes": {
+    "leaf_323": {
+      "node_id": "leaf_323",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "323"
+      ],
+      "summary": "The fix implements proper bounds checking by calculating the minimum required buffer length based on the specific format type (uncompressed vs frame-based) before performing validation checks.",
+      "guidance": null,
+      "features": {
+        "patch": {
+          "patch_id": "323",
+          "cwe_id": "CWE-120",
+          "summary": "The fix implements proper bounds checking by calculating the minimum required buffer length based on the specific format type (uncompressed vs frame-based) before performing validation checks.",
+          "patch": ":\n        --- \n+++ \n@@ -17,7 +17,8 @@\n \tswitch (buffer[2]) {\n \tcase VS_FORMAT_UNCOMPRESSED:\n \tcase VS_FORMAT_FRAME_BASED:\n-\t\tif (buflen < 27) {\n+\t\tn = buffer[2] == VS_FORMAT_UNCOMPRESSED ? 27 : 28;\n+\t\tif (buflen < n) {\n \t\t\tuvc_trace(UVC_TRACE_DESCR, \"device %d videostreaming\"\n \t\t\t       \"interface %d FORMAT error\\n\",\n \t\t\t       dev->udev->devnum,"
+        },
+        "summary": "The fix implements proper bounds checking by calculating the minimum required buffer length based on the specific format type (uncompressed vs frame-based) before performing validation checks.",
+        "group_label": "Dynamic capacity planning and early failure: compute required length and ensure/allocate sufficient buffer (or reject) before formatting/copying."
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "323"
+      }
+    },
+    "leaf_451": {
+      "node_id": "leaf_451",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "451"
+      ],
+      "summary": "The repair strategy involves adding proper bounds checking before buffer operations and implementing early error detection to prevent buffer overflows by validating buffer space availability before data copying operations.",
+      "guidance": null,
+      "features": {
+        "patch": {
+          "patch_id": "451",
+          "cwe_id": "CWE-120",
+          "summary": "The repair strategy involves adding proper bounds checking before buffer operations and implementing early error detection to prevent buffer overflows by validating buffer space availability before data copying operations.",
+          "patch": ":\n        --- \n+++ \n@@ -127,7 +127,7 @@\n       pp->state = PP_Error;\n       break;\n     case PP_Callback:\n-      if ( (pp->buffer_pos + (end_key - start_key) >\n+      if ( (pp->buffer_pos + (end_key - start_key) >=\n             pp->buffer_size) ||\n            (pp->buffer_pos + (end_key - start_key) <\n             pp->buffer_pos) )\n@@ -177,6 +177,11 @@\n   {\n     if (NULL == end_key)\n       end_key = &post_data[poff];\n+    if (pp->buffer_pos + (end_key - start_key) >= pp->buffer_size)\n+    {\n+      pp->state = PP_Error;\n+      return MHD_NO;\n+    }\n     memcpy (&kbuf[pp->buffer_pos],\n             start_key,\n             end_key - start_key);\n@@ -204,5 +209,10 @@\n                    last_escape);\n     pp->must_ikvi = false;\n   }\n+  if (PP_Error == pp->state)\n+  {\n+    /* State in error, returning failure */\n+    return MHD_NO;\n+  }\n   return MHD_YES;\n }"
+        },
+        "summary": "The repair strategy involves adding proper bounds checking before buffer operations and implementing early error detection to prevent buffer overflows by validating buffer space availability before data copying operations.",
+        "group_label": "Dynamic capacity planning and early failure: compute required length and ensure/allocate sufficient buffer (or reject) before formatting/copying."
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "451"
+      }
+    },
+    "leaf_456": {
+      "node_id": "leaf_456",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "456"
+      ],
+      "summary": "The fix ensures adequate memory allocation by accounting for the maximum possible length needed for both the original label and the fallback \"\\N\" string during buffer initialization.",
+      "guidance": null,
+      "features": {
+        "patch": {
+          "patch_id": "456",
+          "cwe_id": "CWE-120",
+          "summary": "The fix ensures adequate memory allocation by accounting for the maximum possible length needed for both the original label and the fallback \"\\N\" string during buffer initialization.",
+          "patch": ":\n        --- \n+++ \n@@ -11,9 +11,10 @@\n     reclblp = ND_label(n)->text;\n     len = strlen(reclblp);\n     /* For some forgotten reason, an empty label is parsed into a space, so\n-     * we need at least two bytes in textbuf.\n+     * we need at least two bytes in textbuf, as well as accounting for the\n+     * error path involving \"\\\\N\" below.\n      */\n-    len = MAX(len, 1);\n+    len = MAX(MAX(len, 1), (int)strlen(\"\\\\N\"));\n     textbuf = N_NEW(len + 1, char);\n     if (!(info = parse_reclbl(n, flip, TRUE, textbuf))) {\n \tagerr(AGERR, \"bad label format %s\\n\", ND_label(n)->text);"
+        },
+        "summary": "The fix ensures adequate memory allocation by accounting for the maximum possible length needed for both the original label and the fallback \"\\N\" string during buffer initialization.",
+        "group_label": "Dynamic capacity planning and early failure: compute required length and ensure/allocate sufficient buffer (or reject) before formatting/copying."
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "456"
+      }
+    },
+    "leaf_510": {
+      "node_id": "leaf_510",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "510"
+      ],
+      "summary": "The repair strategy involves validating the input size against the buffer length limit, copying only the specified number of bytes from userspace, and explicitly null-terminating the buffer to prevent overflow conditions.",
+      "guidance": null,
+      "features": {
+        "patch": {
+          "patch_id": "510",
+          "cwe_id": "CWE-120",
+          "summary": "The repair strategy involves validating the input size against the buffer length limit, copying only the specified number of bytes from userspace, and explicitly null-terminating the buffer to prevent overflow conditions.",
+          "patch": ":\n        --- \n+++ \n@@ -6,8 +6,11 @@\n \tchar buffer[PROC_WRITELEN+1];\n \tunsigned long nodenum;\n \n-\tif (copy_from_user(buffer, input, PROC_WRITELEN))\n+\tif (size > PROC_WRITELEN)\n+\t\treturn -EIO;\n+\tif (copy_from_user(buffer, input, size))\n \t\treturn -EFAULT;\n+\tbuffer[size] = 0;\n \n \tif (*buffer == '+') {\n \t\tnodenum = simple_strtoul(buffer+1, NULL, 10);"
+        },
+        "summary": "The repair strategy involves validating the input size against the buffer length limit, copying only the specified number of bytes from userspace, and explicitly null-terminating the buffer to prevent overflow conditions.",
+        "group_label": "Use-time bounds checks without resizing: validate sizes, limit copy lengths, and check string length before indexing to prevent overreads/writes."
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "510"
+      }
+    },
+    "leaf_3848": {
+      "node_id": "leaf_3848",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "3848"
+      ],
+      "summary": "The repair strategy involves adding a length check before accessing the string's last character to ensure the string is not empty before attempting to modify its terminating newline character.",
+      "guidance": null,
+      "features": {
+        "patch": {
+          "patch_id": "3848",
+          "cwe_id": "CWE-120",
+          "summary": "The repair strategy involves adding a length check before accessing the string's last character to ensure the string is not empty before attempting to modify its terminating newline character.",
+          "patch": ":\n        --- \n+++ \n@@ -1,13 +1,15 @@\n  get_next_file(FILE *VFile, char *ptr)\n  {\n  \tchar *ret;\n+\tsize_t len;\n  \n  \tret = fgets(ptr, PATH_MAX, VFile);\n  \tif (!ret)\n  \t\treturn NULL;\n  \n-\tif (ptr[strlen(ptr) - 1] == '\\n')\n-\t\tptr[strlen(ptr) - 1] = '\\0';\n+\tlen = strlen (ptr);\n+\tif (len > 0 && ptr[len - 1] == '\\n')\n+\t\tptr[len - 1] = '\\0';\n  \n  \treturn ret;\n  }"
+        },
+        "summary": "The repair strategy involves adding a length check before accessing the string's last character to ensure the string is not empty before attempting to modify its terminating newline character.",
+        "group_label": "Use-time bounds checks without resizing: validate sizes, limit copy lengths, and check string length before indexing to prevent overreads/writes."
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "3848"
+      }
+    },
+    "leaf_5165": {
+      "node_id": "leaf_5165",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "5165"
+      ],
+      "summary": "The repair adds explicit bounds checking before copying configuration data to ensure the output buffer has sufficient allocated space to prevent overflow.",
+      "guidance": null,
+      "features": {
+        "patch": {
+          "patch_id": "5165",
+          "cwe_id": "CWE-120",
+          "summary": "The repair adds explicit bounds checking before copying configuration data to ensure the output buffer has sufficient allocated space to prevent overflow.",
+          "patch": ":\n        --- \n+++ \n@@ -35,6 +35,15 @@\n  \n          BufferInfo *outInfo = *outQueue.begin();\n          OMX_BUFFERHEADERTYPE *outHeader = outInfo->mHeader;\n+\n+        if (outHeader->nOffset + encInfo.confSize > outHeader->nAllocLen) {\n+            ALOGE(\"b/34617444\");\n+            android_errorWriteLog(0x534e4554,\"34617444\");\n+            notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);\n+            mSignalledError = true;\n+            return;\n+        }\n+\n          outHeader->nFilledLen = encInfo.confSize;\n          outHeader->nFlags = OMX_BUFFERFLAG_CODECCONFIG;"
+        },
+        "summary": "The repair adds explicit bounds checking before copying configuration data to ensure the output buffer has sufficient allocated space to prevent overflow.",
+        "group_label": "Use-time bounds checks without resizing: validate sizes, limit copy lengths, and check string length before indexing to prevent overreads/writes."
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "5165"
+      }
+    },
+    "leaf_6293": {
+      "node_id": "leaf_6293",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "6293"
+      ],
+      "summary": "The repair strategy involves adding bounds checking to prevent buffer overflows by limiting the input length to PAM_MAX_RESP_SIZE and using safer string handling functions.",
+      "guidance": null,
+      "features": {
+        "patch": {
+          "patch_id": "6293",
+          "cwe_id": "CWE-120",
+          "summary": "The repair strategy involves adding bounds checking to prevent buffer overflows by limiting the input length to PAM_MAX_RESP_SIZE and using safer string handling functions.",
+          "patch": ":\n        --- \n+++ \n@@ -35,9 +35,10 @@\n \t * - we skip leading whitespaces and ignore trailing whitespaces\n \t */\n \twhile (*ptr != '\\0') {\n-\t\tif ((*ptr == ' ') || (*ptr == '\\t'))\n+\t\tif ((*ptr == ' ') || (*ptr == '\\t') ||\n+\t\t    (index >= PAM_MAX_RESP_SIZE)) {\n \t\t\tbreak;\n-\t\telse {\n+\t\t} else {\n \t\t\tusername[index] = *ptr;\n \t\t\tindex++;\n \t\t\tptr++;\n@@ -45,8 +46,8 @@\n \t}\n \n \t/* ret_username will be freed in pam_get_user(). */\n-\tif ((*ret_username = malloc(index + 1)) == NULL)\n+\tif (index >= PAM_MAX_RESP_SIZE ||\n+\t    (*ret_username = strdup(username)) == NULL)\n \t\treturn (PAM_BUF_ERR);\n-\t(void) strcpy(*ret_username, username);\n \treturn (PAM_SUCCESS);\n }"
+        },
+        "summary": "The repair strategy involves adding bounds checking to prevent buffer overflows by limiting the input length to PAM_MAX_RESP_SIZE and using safer string handling functions.",
+        "group_label": "Use-time bounds checks without resizing: validate sizes, limit copy lengths, and check string length before indexing to prevent overreads/writes."
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "6293"
+      }
+    },
+    "leaf_6342": {
+      "node_id": "leaf_6342",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "6342"
+      ],
+      "summary": "The repair strategy adds explicit validation to check if the code value exceeds the mapping array bounds before attempting to reallocate memory, and gracefully fails with an error message if the bounds are exceeded.",
+      "guidance": null,
+      "features": {
+        "patch": {
+          "patch_id": "6342",
+          "cwe_id": "CWE-120",
+          "summary": "The repair strategy adds explicit validation to check if the code value exceeds the mapping array bounds before attempting to reallocate memory, and gracefully fails with an error message if the bounds are exceeded.",
+          "patch": ":\n        --- \n+++ \n@@ -8,9 +8,14 @@\n   if (code >= mapLen) {\n     oldLen = mapLen;\n     mapLen = (code + 256) & ~255;\n-    map = (Unicode *)greallocn(map, mapLen, sizeof(Unicode));\n-    for (i = oldLen; i < mapLen; ++i) {\n-      map[i] = 0;\n+    if (unlikely(code >= mapLen)) {\n+      error(-1, \"Illegal code value in CharCodeToUnicode::addMapping\");\n+      return;\n+    } else {\n+      map = (Unicode *)greallocn(map, mapLen, sizeof(Unicode));\n+      for (i = oldLen; i < mapLen; ++i) {\n+        map[i] = 0;\n+      }\n     }\n   }\n   if (n <= 4) {"
+        },
+        "summary": "The repair strategy adds explicit validation to check if the code value exceeds the mapping array bounds before attempting to reallocate memory, and gracefully fails with an error message if the bounds are exceeded.",
+        "group_label": "Array-index bounds validation and static buffer-size corrections: guard mapping array access and increase compile-time buffer size for larger precisions, with added checks."
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "6342"
+      }
+    },
+    "leaf_6348": {
+      "node_id": "leaf_6348",
+      "depth": 0,
+      "children": [],
+      "steps": [
+        "6348"
+      ],
+      "summary": "The repair strategy involves increasing the buffer size to accommodate larger precision values and adding bounds checking to reject invalid precision parameters that exceed safe limits.",
+      "guidance": null,
+      "features": {
+        "patch": {
+          "patch_id": "6348",
+          "cwe_id": "CWE-120",
+          "summary": "The repair strategy involves increasing the buffer size to accommodate larger precision values and adding bounds checking to reject invalid precision parameters that exceed safe limits.",
+          "patch": ":\n        --- \n+++ \n@@ -1,14 +1,14 @@\n static Jsi_RC NumberToPrecisionCmd(Jsi_Interp *interp, Jsi_Value *args, Jsi_Value *_this,\n     Jsi_Value **ret, Jsi_Func *funcPtr)\n {\n-    char buf[100];\n+    char buf[JSI_MAX_NUMBER_STRING*2];\n     int prec = 0, skip = 0;\n     Jsi_Number num;\n     Jsi_Value *v;\n     ChkStringN(_this, funcPtr, v);\n     if (Jsi_GetIntFromValue(interp, Jsi_ValueArrayIndex(interp, args, skip), &prec) != JSI_OK)\n         return JSI_ERROR;\n-    if (prec<=0) return JSI_ERROR;\n+    if (prec<=0 || prec>JSI_MAX_NUMBER_STRING) return Jsi_LogError(\"precision must be between 1 and %d\", JSI_MAX_NUMBER_STRING);\n     Jsi_GetDoubleFromValue(interp, v, &num);\n     snprintf(buf, sizeof(buf),\"%.*\" JSI_NUMFFMT, prec, num);\n     if (num<0)"
+        },
+        "summary": "The repair strategy involves increasing the buffer size to accommodate larger precision values and adding bounds checking to reject invalid precision parameters that exceed safe limits.",
+        "group_label": "Array-index bounds validation and static buffer-size corrections: guard mapping array access and increase compile-time buffer size for larger precisions, with added checks."
+      },
+      "provenance": {
+        "source": "leaf",
+        "patch_id": "6348"
+      }
+    },
+    "L1_ef22ad6b": {
+      "node_id": "L1_ef22ad6b",
+      "depth": 1,
+      "children": [
+        "leaf_323",
+        "leaf_451",
+        "leaf_456"
+      ],
+      "steps": [
+        "323",
+        "451",
+        "456"
+      ],
+      "summary": "Validate lengths, restrict copies to capacity, and allocate for worst case with terminator.",
+      "guidance": "Before any buffer operation, obtain destination capacity and validate input size, compute the permitted amount as the smaller of these after reserving space for a terminator, and restrict the transfer to that amount while explicitly terminating. Size allocations using the maximum possible input expansion and include headroom for delimiters and worst-case growth.",
+      "features": {
+        "detail_level": "high",
+        "child_count": 3
+      },
+      "provenance": {
+        "source": "abstraction",
+        "depth": 1
+      }
+    },
+    "L1_eca2c3f4": {
+      "node_id": "L1_eca2c3f4",
+      "depth": 1,
+      "children": [
+        "leaf_510",
+        "leaf_3848",
+        "leaf_5165",
+        "leaf_6293"
+      ],
+      "steps": [
+        "510",
+        "3848",
+        "5165",
+        "6293"
+      ],
+      "summary": "Harden input handling with capacity verification and guarded transfers to avert memory overruns.",
+      "guidance": "Before indexing or copying, compare untrusted length fields with actual buffer capacity and clamp to safe limits; refuse malformed input and log errors. Perform copies and text access only within these verified bounds, guarantee explicit termination after truncation, and treat absent terminators or size mismatches as validation failures.",
+      "features": {
+        "detail_level": "high",
+        "child_count": 4
+      },
+      "provenance": {
+        "source": "abstraction",
+        "depth": 1
+      }
+    },
+    "L1_508befc7": {
+      "node_id": "L1_508befc7",
+      "depth": 1,
+      "children": [
+        "leaf_6342",
+        "leaf_6348"
+      ],
+      "steps": [
+        "6342",
+        "6348"
+      ],
+      "summary": "Enforce code bounds and resize buffers to accommodate maximal mapping size.",
+      "guidance": "Pre-validate each code against an explicit upper bound before lookup or translation, rejecting out-of-range values. Expand storage to cover the longest accepted representation and halt processing when the calculated footprint would exceed that capacity.",
+      "features": {
+        "detail_level": "high",
+        "child_count": 2
+      },
+      "provenance": {
+        "source": "abstraction",
+        "depth": 1
+      }
+    },
+    "L2_a71d9673": {
+      "node_id": "L2_a71d9673",
+      "depth": 2,
+      "children": [
+        "L1_ef22ad6b",
+        "L1_eca2c3f4",
+        "L1_508befc7"
+      ],
+      "steps": [
+        "323",
+        "451",
+        "456",
+        "510",
+        "3848",
+        "5165",
+        "6293",
+        "6342",
+        "6348"
+      ],
+      "summary": "Validate sizes, bound data handling, and provision capacity for worst-case input and mapping sizes",
+      "guidance": "Apply strict capacity validation to externally influenced sizes and constrain data movement to verified limits. Provision storage for the maximum legitimate mapping scope, and fail safely when requested sizes exceed permissible bounds.",
+      "features": {
+        "detail_level": "medium",
+        "child_count": 3
+      },
+      "provenance": {
+        "source": "abstraction",
+        "depth": 2
+      }
+    }
+  }
+}

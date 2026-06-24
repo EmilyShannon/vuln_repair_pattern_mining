@@ -1,0 +1,28 @@
+vuln_code,cwe_id,vuln_code_summary,most_similar_summary,most_similar_summary_id,explanation
+"@@ -1,13 +1,15 @@
+  get_next_file(FILE *VFile, char *ptr)
+  {
+  	char *ret;
++	size_t len;
+  
+  	ret = fgets(ptr, PATH_MAX, VFile);
+  	if (!ret)
+  		return NULL;
+  
+-	if (ptr[strlen(ptr) - 1] == '\n')
+-		ptr[strlen(ptr) - 1] = '\0';
++	len = strlen (ptr);
++	if (len > 0 && ptr[len - 1] == '\n')
++		ptr[len - 1] = '\0';
+  
+  	return ret;
+  }",CWE-120,"Reads input into a caller-provided buffer using a fixed maximum that is not derived from the buffer’s actual capacity, creating a mismatch between write size and allocation. If the caller supplies a smaller buffer or platform limits differ, the read can overrun the buffer, and subsequent length-based character manipulation can compound out-of-bounds access. Conditions include untrusted or inconsistently sized buffers, long input lines, and cross-module assumptions about buffer size. Impact includes memory corruption, crashes, information exposure, and potential arbitrary code execution.",Unvalidated external input sizes against buffer capacity enable overflow and memory corruption.,L1_315c3df2,"The vulnerability describes reading data into a caller-provided buffer using a fixed maximum that is not tied to the buffer’s true capacity, leading to potential overruns across module boundaries—an archetypal CWE-120 size/assumption mismatch. This aligns with the L1 node’s general theme of failing to validate input size against actual buffer capacity. It does not fit the more specific L1_a42fa9e0 branch, which is about configuration-field copies, not generic input reads into arbitrary caller buffers. Among L1_315c3df2’s children, each leaf focuses on narrower cases that miss key aspects of the report: leaf_510 is a procfs copy_from_user case with a known local buffer and explicit size parameter, not a cross-module, caller-capacity mismatch; leaf_451 concerns incremental parser copying bounds, not reads into a caller-supplied buffer; leaf_323 is a format-specific minimum-length check, not an input read size vs. receiver capacity issue; leaf_456 is about allocating enough space for a label/fallback string, not mismatched read limits; and leaf_3848 guards newline trimming on empty strings, unrelated to write-size vs. allocation mismatches. Therefore, the broader L1 node best captures the described conditions and impact without overfitting to a specific subcase."
+"@@ -2,7 +2,7 @@
+  {
+         int rune;
+  
+-       if (str->utf8 == NULL)
++       if (str->utf8 == NULL || str->pos == -1)
+                 return;
+  
+         do",CWE-125,"Out-of-bounds read (CWE-125) caused by insufficient validation of an iteration position before accessing a backing buffer. The logic treats the presence of a buffer as sufficient to proceed, but does not ensure the cursor/offset is within valid bounds, allowing a sentinel or invalid value (such as -1) to be used for subsequent reads. When the structure has a buffer but an uninitialized or invalid position, iteration can reference memory before or beyond the buffer. An attacker who can influence the object’s state or supply malformed input can trigger this condition, leading to crashes, undefined behavior, and potential disclosure of adjacent memory (information leakage) or denial of service.",The vulnerability involves a potential out-of-bounds read when accessing UTF-8 string data due to lack of proper bounds checking on the string position.,leaf_689,"This exactly matches the described issue: iteration proceeds because a buffer exists but fails to validate the iteration cursor (e.g., a sentinel like -1), allowing reads outside the backing buffer. The patch explicitly checks str->pos == -1 before accessing data. Nearby, finer-grained nodes under the same parent focus on different root causes—e.g., ASN.1/non-NUL-terminated string assumptions (leaf_121/143/144/204) or general length/format validation—rather than validating an internal iterator/index state. Those cases guard string termination or declared lengths, not a cursor/position variable within a structure, so they don’t capture the “buffer present but invalid position” pattern described here."
