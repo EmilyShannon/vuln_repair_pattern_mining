@@ -404,29 +404,41 @@ Example:
     else:
         if relative_pos < 0.35:
             return """LAYER 1 (SPECIFIC):
-Your guidance must describe SPECIFIC repair strategies, at the implementation level, excluding specific programming language constructs or programming entities.
-Focus on the concrete operational safeguards being applied.
+    Describe the concrete repair strategy used by the patches.
 
-Example:
-"Validate externally supplied input lengths against fixed capacity limits before copying data, restrict transfers to the validated size, and ensure copied data is explicitly terminated to prevent overflow from unterminated input."
-"""
+    Focus on the defensive actions introduced by the repair while avoiding specific programming language constructs, API names, variables, or code entities.
+
+    Describe what is being validated, constrained, or protected, not how it is written.
+
+    Example:
+    "Validate data sizes before processing, restrict operations to within safe limits, and ensure resulting data is safely terminated after processing."
+    """
+
         elif relative_pos < 0.7:
             return """LAYER 2 (STRATEGIC):
-Your guidance must describe the METHODOLOGY behind the repair strategies, not specific implementation modes. 
-DO NOT mention specific programming entities, language constructs, or implementation details.
 
-Example:
-"Enforce strict boundary validation on externally provided data and constrain data handling operations to verified limits to prevent unsafe memory access conditions."
-"""
+    Describe the common methodology shared by the repairs.
+
+    Focus on how the repair establishes safe operating conditions before potentially unsafe operations occur.
+
+    Do not describe individual implementation steps.
+
+    Example:
+    "Establish validation checks that ensure data-dependent operations remain within safe operational boundaries before processing occurs."
+    """
+
         else:
             return """LAYER 3 (ABSTRACT):
-Your guidance must be PURELY METHODOLOGICAL and mainly relay the CONCEPTS behind the repair strategies.
-DO NOT mention specific programming entities, language constructs, or implementation details.
 
-Example:
-"Apply defensive input handling practices that ensure untrusted data is processed only within validated operational boundaries to maintain memory safety."
-"""
+    Describe the underlying defensive principle.
 
+    Focus on the general philosophy behind the repairs rather than individual validation techniques.
+
+    Avoid implementation details entirely.
+
+    Example:
+    "Ensure operations are performed only after safety constraints have been verified, preventing unsafe behavior through enforced boundaries."
+    """
 
 def generate_node_guidance(
     children: List[TreeNode],
@@ -453,7 +465,7 @@ def generate_node_guidance(
     
     if config.tree_type == "repair":
         summary_goal = "Generate a concise repair summary for this group."
-        guidance_goal = "Generate guidance describing the repair strategy."
+        guidance_goal = "Generate the best abstraction that explains the common repair strategy shared by the child nodes."
         detail_instruction = f"""DETAIL: {detail_level.upper()}
 - Describe the repair strategy at the appropriate level of abstraction.
 - Focus on defensive safeguards, validation behavior, or high-level methodology.
@@ -473,30 +485,50 @@ Guidance: "Process externally influenced data only within validated operational 
 """
     elif config.tree_type == "vulnerability":
         summary_goal = "Generate a concise vulnerability summary for this group."
-        guidance_goal = "Generate a more detailed description of the vulnerability."
+        guidance_goal = "Generate the best abstraction that explains the common vulnerability shared by the child nodes."
         detail_instruction = f"""DETAIL: {detail_level.upper()}
 - Describe the vulnerability at the appropriate level of abstraction.
 - Focus on the underlying weakness, conditions, and impact."""
-        examples_string = """
+    examples_string = """
 GOOD (high, ~50 words):
-Summary: "Improper validation of externally supplied input lengths leads to buffer overflow."
-Guidance: "Ensure all externally provided length values are validated against fixed capacity limits before performing memory operations. Restrict data handling to the validated size and explicitly terminate copied input to prevent overflow from unterminated or malformed data."
+Summary: "Insufficient validation of data sizes allows operations to exceed safe memory or buffer boundaries."
+Guidance: "Ensure all data size values are validated against fixed capacity limits before performing memory operations. Constrain processing to validated sizes and ensure resulting data remains within safe bounds."
 
 GOOD (medium, ~35 words):
-Summary: "Failure to validate input lengths allows buffer overflow."
-Guidance: "Enforce strict validation of externally provided length values and constrain data handling to verified limits to prevent unsafe memory access conditions."
+Summary: "Failure to validate data sizes allows unsafe memory or buffer access conditions."
+Guidance: "Enforce strict validation of data size values and constrain processing to verified limits to prevent unsafe memory conditions."
 """
     else:
         summary_goal = "Generate a concise vulnerability summary for this group."
-        guidance_goal = "Generate guidance describing the repair strategy for this vulnerability."
+        guidance_goal = "Generate the best abstraction that explains the common repair strategy shared by the child nodes."
         detail_instruction = f"""DETAIL: {detail_level.upper()}
 - For the summary, describe the vulnerability at the appropriate level of abstraction, focusing on the underlying weakness, conditions, and impact.
 - For the guidance, describe the repair strategy at the appropriate level of abstraction, focusing on defensive safeguards, validation behavior, or high-level methodology.
 - Avoid programming language constructs, specific API names, or overly procedural steps in both summary and guidance."""
         examples_string = """
-GOOD (medium, ~40 words):
-Summary: "Improper validation of externally supplied input lengths leads to buffer overflow."
-Guidance: "Verify externally provided length values before performing memory operations, restrict transfers to validated boundaries, and ensure copied data is safely terminated to prevent overflow from malformed or unterminated input."
+GOOD (high, ~50–60 words):
+
+Summary:
+"Invalid or unchecked data sizes can lead to operations exceeding intended memory or buffer limits, creating unsafe processing conditions."
+
+Guidance:
+"Validate data sizes before processing, restrict operations to within verified limits, and ensure resulting data is safely terminated or bounded after processing."
+
+GOOD (medium, ~35–45 words):
+
+Summary:
+"Insufficient validation of data-dependent sizes allows operations to exceed safe boundaries during processing."
+
+Guidance:
+"Establish validation checks that ensure operations remain within safe bounds before processing data."
+
+GOOD (low, ~25–30 words):
+
+Summary:
+"Unchecked data sizes can violate safe operational boundaries."
+
+Guidance:
+"Apply validation to ensure operations remain within safe limits before execution."
 """
 
     prompt = f"""Generate a CONCISE label, summary, and guidance.
@@ -513,6 +545,18 @@ Guidance: "Verify externally provided length values before performing memory ope
 5. NO commands (grep, ls, find)
 6. NO file paths
 7. Write as flowing prose
+
+DO NOT:
+
+- Restate the child summaries.
+- Describe code edits.
+- Mention variables, APIs, library calls, or language constructs.
+- Enumerate repair steps.
+- Describe one specific patch.
+- Explain how the code changed.
+
+Instead, identify the common defensive strategy that explains why the repairs belong together. 
+Imagine explaining why these repairs belong in the same category to an experienced software engineer. Capture the shared repair principle, not the individual implementation details.
 
 ===== EXAMPLES =====
 {examples_string}
