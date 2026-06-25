@@ -54,6 +54,7 @@ class TreeNode:
     steps: List[str]  # All leaf step IDs covered by this subtree
     
     # Content
+    label: str
     summary: str
     raw_patch: Optional[str] = None  # Only for leaf nodes
     guidance: Optional[str] = None  # Generated guidance for this node
@@ -218,6 +219,7 @@ def build_leaf_nodes(patches: List[Dict[str, Any]]) -> List[TreeNode]:
         patch_id = str(patch["patch_id"])
         features = extract_step_features(patch)
         summary = patch.get("summary", f"Patch {patch_id}")
+        label = enforce_word_limit(summary, 15)
         raw_patch = patch.get("raw_patch", f"Patch {patch_id}")
         
         node = TreeNode(
@@ -225,6 +227,7 @@ def build_leaf_nodes(patches: List[Dict[str, Any]]) -> List[TreeNode]:
             depth=0,
             children=[],
             steps=[patch_id],
+            label=label,
             summary=summary,
             raw_patch=raw_patch,
             guidance=None,
@@ -496,19 +499,20 @@ Summary: "Improper validation of externally supplied input lengths leads to buff
 Guidance: "Verify externally provided length values before performing memory operations, restrict transfers to validated boundaries, and ensure copied data is safely terminated to prevent overflow from malformed or unterminated input."
 """
 
-    prompt = f"""Generate a CONCISE summary and guidance.
+    prompt = f"""Generate a CONCISE label, summary, and guidance.
 
 {layer_context}
 
 {detail_instruction}
 
 ===== STRICT CONSTRAINTS =====
-1. Summary: ONE sentence, MAX 15 words
-2. Guidance: MAX {max_words} words, 1-2 short sentences
-3. NO bullet points, NO lists, NO headers
-4. NO commands (grep, ls, find)
-5. NO file paths
-6. Write as flowing prose
+1. Label: ONE short phrase, MAX 15 words
+2. Summary: MAX {max_words} words, 1-2 short sentences
+3. Guidance: MAX {max_words} words, 1-2 short sentences
+4. NO bullet points, NO lists, NO headers
+5. NO commands (grep, ls, find)
+6. NO file paths
+7. Write as flowing prose
 
 ===== EXAMPLES =====
 {examples_string}
@@ -518,7 +522,8 @@ Guidance: "Verify externally provided length values before performing memory ope
 
 Return ONLY JSON:
 {{
-  "summary": "short sentence under 15 words",
+  "label": "short label under 15 words",
+  "summary": "1-2 sentences under {max_words} words",
   "guidance": "1-2 sentences under {max_words} words"
 }}"""
     
@@ -528,30 +533,36 @@ Return ONLY JSON:
         response = llm.invoke(prompt)
         data = parse_json(parse_llm_response(response))
         
+        label = data.get("label", "")
         summary = data.get("summary", "")
         guidance = data.get("guidance", "")
         
-        summary = enforce_word_limit(summary, 20)
+        label = enforce_word_limit(label, 15)
+        summary = enforce_word_limit(summary, max_words + 15)
         guidance = enforce_word_limit(guidance, max_words + 15)
         guidance = remove_bullet_formatting(guidance)
         
+        if not label:
+            label = enforce_word_limit(summary or guidance or f"Group of {len(children)} nodes", 15)
         if not summary:
-            summary = f"[FALLBACK] Vulnerability repair patterns across {len(children)} related cases"
+            summary = guidance or f"[FALLBACK] Vulnerability repair patterns across {len(children)} related cases"
         if not guidance:
             guidance = "[FALLBACK] Apply defensive validation and constrain unsafe behavior through consistent repair safeguards."
         
-        return summary, guidance
+        return label, summary, guidance
         
     except Exception as e:
         print(f"[Guidance] Error at depth {current_depth}: {e}")
         
         if strategies:
+            label = enforce_word_limit(strategies[0], 15)
             summary = shorten(strategies[0], 80)
         else:
+            label = enforce_word_limit(f"Group of {len(children)} nodes", 15)
             summary = f"[FALLBACK] Vulnerability repair patterns across {len(children)} related cases"
 
         guidance = "[FALLBACK] Apply defensive validation and constrain unsafe behavior through consistent repair safeguards."
-        return summary, guidance
+        return label, summary, guidance
 
 
 def _step_index(step_id: str) -> int:
@@ -567,7 +578,7 @@ def abstract_group(
     config: TreeConfig,
 ) -> TreeNode:
     """Create a parent node from a group of children."""
-    summary, guidance = generate_node_guidance(
+    label, summary, guidance = generate_node_guidance(
         children, new_depth, detail_level, estimated_max_depth, config
     )
     
@@ -579,6 +590,7 @@ def abstract_group(
         depth=new_depth,
         children=[n.node_id for n in children],
         steps=all_steps,
+        label=label,
         summary=summary,
         guidance=guidance,
         features={
@@ -702,6 +714,7 @@ def extract_layer_guidance(
     for node in layer_nodes:
         guidances.append({
             "node_id": node.node_id,
+            "label": node.label,
             "summary": node.summary,
             "guidance": node.guidance,
             "steps_covered": node.steps,
@@ -728,7 +741,8 @@ def format_layer_prompt(depth: int, guidances: List[Dict]) -> str:
     ]
     
     for i, g in enumerate(guidances, 1):
-        lines.append(f"## Item {i}: {g['summary']}")
+        lines.append(f"## Item {i}: {g['label']}")
+        lines.append(f"\n**Summary:**\n{g['summary']}")
         lines.append(f"\n**Guidance:**\n{g['guidance']}")
         lines.append(f"\n*Covers {g['num_steps']} original steps*")
         lines.append("")
@@ -778,6 +792,7 @@ def node_to_dict(node: TreeNode) -> Dict:
         "depth": node.depth,
         "children": node.children,
         "steps": node.steps,
+        "label": node.label,
         "summary": node.summary,
         "guidance": node.guidance,
         "features": node.features,
