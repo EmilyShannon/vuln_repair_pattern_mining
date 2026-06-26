@@ -51,7 +51,7 @@ class TreeNode:
     node_id: str
     depth: int  # 0 = leaf, increases upward
     children: List[str]  # Child node IDs
-    steps: List[str]  # All leaf step IDs covered by this subtree
+    # steps: List[str]  # All leaf step IDs covered by this subtree
     
     # Content
     label: str
@@ -220,7 +220,7 @@ def build_leaf_nodes(patches: List[Dict[str, Any]]) -> List[TreeNode]:
         features = extract_step_features(patch)
         summary = patch.get("summary", f"Patch {patch_id}")
         label = f"Patch {patch_id}"
-        raw_patch = patch.get("raw_patch", f"Patch {patch_id}")
+        raw_patch = patch.get("patch", f"Patch {patch_id}")
         
         node = TreeNode(
             node_id=f"leaf_{patch_id}",
@@ -542,7 +542,7 @@ Guidance: "Process externally influenced data only within validated operational 
         detail_instruction = f"""DETAIL: {detail_level.upper()}
 - Describe the vulnerability at the appropriate level of abstraction.
 - Focus on the underlying weakness, conditions, and impact."""
-    examples_string = """
+        examples_string = """
 GOOD (high, ~50 words):
 Summary: "Insufficient validation of data sizes allows operations to exceed safe memory or buffer boundaries."
 Guidance: "Ensure all data size values are validated against fixed capacity limits before performing memory operations. Constrain processing to validated sizes and ensure resulting data remains within safe bounds."
@@ -584,58 +584,58 @@ Guidance:
 "Apply validation to ensure operations remain within safe limits before execution."
 """
 
-prompt = f"""Generate a CONCISE label, summary, and guidance.
+    prompt = f"""Generate a CONCISE label, summary, and guidance.
 
-{layer_context}
+    {layer_context}
 
-{detail_instruction}
+    {detail_instruction}
 
-SUMMARY AND GUIDANCE HAVE DIFFERENT PURPOSES:
+    SUMMARY AND GUIDANCE HAVE DIFFERENT PURPOSES:
 
-SUMMARY:
-- Always describe the COMMON VULNERABILITY represented by the child nodes.
-- Never describe the repair.
-- Follow the abstraction level specified in the layer instructions.
+    SUMMARY:
+    - Always describe the COMMON VULNERABILITY represented by the child nodes.
+    - Never describe the repair.
+    - Follow the abstraction level specified in the layer instructions.
 
-GUIDANCE:
-- In a repair tree, describe the common repair strategy.
-- In a vulnerability tree, describe the common vulnerability mechanism.
-- Follow the abstraction level specified in the layer instructions.
+    GUIDANCE:
+    - In a repair tree, describe the common repair strategy.
+    - In a vulnerability tree, describe the common vulnerability mechanism.
+    - Follow the abstraction level specified in the layer instructions.
 
-===== STRICT CONSTRAINTS =====
-1. Label: ONE short phrase, MAX 15 words
-2. Summary: MAX {max_words} words, 1-2 short sentences
-3. Guidance: MAX {max_words} words, 1-2 short sentences
-4. NO bullet points, NO lists, NO headers
-5. NO commands (grep, ls, find)
-6. NO file paths
-7. Write as flowing prose
+    ===== STRICT CONSTRAINTS =====
+    1. Label: ONE short phrase, MAX 15 words
+    2. Summary: MAX {max_words} words, 1-2 short sentences
+    3. Guidance: MAX {max_words} words, 1-2 short sentences
+    4. NO bullet points, NO lists, NO headers
+    5. NO commands (grep, ls, find)
+    6. NO file paths
+    7. Write as flowing prose
 
-DO NOT:
+    DO NOT:
 
-- Restate the child summaries.
-- Describe code edits.
-- Mention variables, APIs, library calls, or language constructs.
-- Enumerate repair steps.
-- Describe one specific patch.
-- Explain how the code changed.
+    - Restate the child summaries.
+    - Describe code edits.
+    - Mention variables, APIs, library calls, or language constructs.
+    - Enumerate repair steps.
+    - Describe one specific patch.
+    - Explain how the code changed.
 
-Instead, identify the common defensive strategy that explains why the repairs belong together. 
-Imagine explaining why these repairs belong in the same category to an experienced software engineer. Capture the shared repair principle, not the individual implementation details.
+    Instead, identify the common defensive strategy that explains why the repairs belong together. 
+    Imagine explaining why these repairs belong in the same category to an experienced software engineer. Capture the shared repair principle, not the individual implementation details.
 
-===== EXAMPLES =====
-{examples_string}
+    ===== EXAMPLES =====
+    {examples_string}
 
-===== CHILD NODES ({len(children)} items, {len(all_steps)} steps) =====
-{context_text}
+    ===== CHILD NODES ({len(children)} items, {len(all_steps)} steps) =====
+    {context_text}
 
-Return ONLY JSON:
-{{
-  "label": "short label under 15 words",
-  "summary": "1-2 sentences under {max_words} words",
-  "guidance": "1-2 sentences under {max_words} words"
-}}"""
-    
+    Return ONLY JSON:
+    {{
+    "label": "short label under 15 words",
+    "summary": "1-2 sentences under {max_words} words",
+    "guidance": "1-2 sentences under {max_words} words"
+    }}"""
+        
     llm = get_llm()
     
     try:
