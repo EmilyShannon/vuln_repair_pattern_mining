@@ -219,7 +219,7 @@ def build_leaf_nodes(patches: List[Dict[str, Any]]) -> List[TreeNode]:
         patch_id = str(patch["patch_id"])
         features = extract_step_features(patch)
         summary = patch.get("summary", f"Patch {patch_id}")
-        label = enforce_word_limit(summary, 15)
+        label = f"Patch {patch_id}"
         raw_patch = patch.get("raw_patch", f"Patch {patch_id}")
         
         node = TreeNode(
@@ -379,66 +379,119 @@ def get_layer_context(current_depth, estimated_max_depth, tree_type: str = "repa
     if tree_type == "vulnerability":
         if relative_pos < 0.35:
             return """LAYER 1 (SPECIFIC):
-Your guidance must describe the vulnerability in specific terms, at the implementation level, excluding specific programming language constructs or programming entities.
-Focus on the concrete conditions, triggers, and behavior of the vulnerability.
 
-Example:
-"Failure to validate externally supplied input lengths allows buffer overflow when data is copied into a fixed-size buffer, especially if the copy assumes the value is safe."
+SUMMARY:
+Describe the vulnerability in specific implementation-level terms, excluding programming language constructs or programming entities.
+Focus on the concrete conditions, triggers, and behavior that characterize the vulnerability.
+
+GUIDANCE:
+Describe the vulnerability in specific implementation-level terms.
+Focus on the concrete conditions that cause the weakness and the resulting unsafe behavior.
+
+Example Summary:
+"Failure to validate externally supplied input lengths allows operations to exceed intended buffer boundaries."
+
+Example Guidance:
+"Improper validation of externally controlled sizes can permit memory corruption when data is processed using unchecked limits."
 """
         elif relative_pos < 0.7:
             return """LAYER 2 (STRATEGIC):
-Your guidance must describe the general vulnerability mechanism and the conditions that lead to it.
-DO NOT mention specific programming entities, language constructs, or implementation details.
 
-Example:
-"Improper handling of externally controlled sizes can enable memory corruption when untrusted input is used to determine allocation or copy bounds."
+SUMMARY:
+Describe the general vulnerability mechanism shared by the child nodes.
+Focus on the common weakness without implementation details or programming entities.
+
+GUIDANCE:
+Describe the common vulnerability mechanism and the conditions that enable it.
+Do not mention specific programming constructs.
+
+Example Summary:
+"Improper handling of externally controlled sizes creates unsafe memory access conditions."
+
+Example Guidance:
+"Reliance on untrusted size information without sufficient validation can compromise memory safety."
 """
         else:
             return """LAYER 3 (ABSTRACT):
-Your guidance must be PURELY ABSTRACT and describe the core vulnerability concept and its impact.
-DO NOT mention specific programming entities, language constructs, or implementation details.
 
-Example:
-"Untrusted input processed without adequate validation can undermine memory safety by allowing unsafe operations on attacker-controlled data."
+SUMMARY:
+Describe the underlying vulnerability concept at a high level.
+Capture the common security weakness rather than specific manifestations.
+
+GUIDANCE:
+Describe the core security principle that explains the vulnerability.
+Avoid implementation details entirely.
+
+Example Summary:
+"Insufficient validation of untrusted input undermines safe system behavior."
+
+Example Guidance:
+"Unsafe processing of attacker-controlled input can violate fundamental security boundaries."
 """
     else:
         if relative_pos < 0.35:
             return """LAYER 1 (SPECIFIC):
-    Describe the concrete repair strategy used by the patches.
 
-    Focus on the defensive actions introduced by the repair while avoiding specific programming language constructs, API names, variables, or code entities.
+SUMMARY:
+Describe the vulnerability in specific implementation-level terms.
+Focus on the concrete conditions that make the weakness possible.
+Do not mention the repair.
 
-    Describe what is being validated, constrained, or protected, not how it is written.
+GUIDANCE:
+Describe the concrete repair strategy used by the patches.
 
-    Example:
-    "Validate data sizes before processing, restrict operations to within safe limits, and ensure resulting data is safely terminated after processing."
-    """
+Focus on the defensive actions introduced by the repair while avoiding specific programming language constructs, API names, variables, or code entities.
+
+Describe what is being validated, constrained, or protected, not how it is written.
+
+Example Summary:
+"Unchecked externally supplied lengths allow operations to exceed intended buffer boundaries."
+
+Example Guidance:
+"Validate data sizes before processing, restrict operations to verified limits, and ensure resulting data remains safely bounded."
+"""
 
         elif relative_pos < 0.7:
             return """LAYER 2 (STRATEGIC):
 
-    Describe the common methodology shared by the repairs.
+SUMMARY:
+Describe the common vulnerability mechanism shared by the child nodes.
+Avoid implementation details.
 
-    Focus on how the repair establishes safe operating conditions before potentially unsafe operations occur.
+GUIDANCE:
+Describe the common methodology shared by the repairs.
 
-    Do not describe individual implementation steps.
+Focus on how the repair establishes safe operating conditions before potentially unsafe operations occur.
 
-    Example:
-    "Establish validation checks that ensure data-dependent operations remain within safe operational boundaries before processing occurs."
-    """
+Do not describe individual implementation steps.
+
+Example Summary:
+"Improper validation of externally controlled sizes creates unsafe memory conditions."
+
+Example Guidance:
+"Establish validation that ensures data-dependent operations occur only within verified safe limits."
+"""
 
         else:
             return """LAYER 3 (ABSTRACT):
 
-    Describe the underlying defensive principle.
+SUMMARY:
+Describe the underlying security weakness at a conceptual level.
+Capture the common vulnerability shared across the group.
 
-    Focus on the general philosophy behind the repairs rather than individual validation techniques.
+GUIDANCE:
+Describe the underlying defensive principle.
 
-    Avoid implementation details entirely.
+Focus on the general philosophy behind the repairs rather than individual validation techniques.
 
-    Example:
-    "Ensure operations are performed only after safety constraints have been verified, preventing unsafe behavior through enforced boundaries."
-    """
+Avoid implementation details entirely.
+
+Example Summary:
+"Insufficient validation of untrusted input can undermine system safety."
+
+Example Guidance:
+"Enforce safety constraints before operations are permitted, preventing unsafe behavior through verified boundaries."
+"""
 
 def generate_node_guidance(
     children: List[TreeNode],
@@ -531,11 +584,23 @@ Guidance:
 "Apply validation to ensure operations remain within safe limits before execution."
 """
 
-    prompt = f"""Generate a CONCISE label, summary, and guidance.
+prompt = f"""Generate a CONCISE label, summary, and guidance.
 
 {layer_context}
 
 {detail_instruction}
+
+SUMMARY AND GUIDANCE HAVE DIFFERENT PURPOSES:
+
+SUMMARY:
+- Always describe the COMMON VULNERABILITY represented by the child nodes.
+- Never describe the repair.
+- Follow the abstraction level specified in the layer instructions.
+
+GUIDANCE:
+- In a repair tree, describe the common repair strategy.
+- In a vulnerability tree, describe the common vulnerability mechanism.
+- Follow the abstraction level specified in the layer instructions.
 
 ===== STRICT CONSTRAINTS =====
 1. Label: ONE short phrase, MAX 15 words
