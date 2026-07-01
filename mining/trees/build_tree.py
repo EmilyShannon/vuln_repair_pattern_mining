@@ -51,7 +51,7 @@ class TreeNode:
     node_id: str
     depth: int  # 0 = leaf, increases upward
     children: List[str]  # Child node IDs
-    # steps: List[str]  # All leaf step IDs covered by this subtree
+    patches: List[str]  # All leaf patch IDs covered by this subtree
     
     # Content
     label: str
@@ -69,10 +69,10 @@ class LayerGuidance:
     """Extracted guidance for one layer of the tree"""
     layer_depth: int
     node_count: int
-    total_steps_covered: int
+    total_patches_covered: int
     
     # The actual guidance content
-    guidances: List[Dict[str, Any]]  # List of {node_id, summary, guidance, steps_covered}
+    guidances: List[Dict[str, Any]]  # List of {node_id, summary, guidance, patches_covered}
     
     # Formatted for experiments
     formatted_prompt: str
@@ -82,7 +82,7 @@ class LayerGuidance:
 class ExperimentPackage:
     """Complete package for running experiments"""
     cwe_id: str
-    total_steps: int
+    total_patches: int
     tree_depth: int  # How many layers (excluding leaves)
     
     # Guidance by layer - key is depth (1, 2, 3, ...)
@@ -203,7 +203,7 @@ def remove_bullet_formatting(text: str) -> str:
 #  LEAF NODE CONSTRUCTION
 # =========================
 
-def extract_step_features(patch: Dict[str, Any]) -> Dict[str, Any]:
+def extract_patch_features(patch: Dict[str, Any]) -> Dict[str, Any]:
     """Extract relevant features from a raw patch"""    
     return {
         "raw_patch": patch,
@@ -217,7 +217,7 @@ def build_leaf_nodes(patches: List[Dict[str, Any]]) -> List[TreeNode]:
     
     for patch in patches:
         patch_id = str(patch["patch_id"])
-        features = extract_step_features(patch)
+        features = extract_patch_features(patch)
         summary = patch.get("summary", f"Patch {patch_id}")
         label = f"Patch {patch_id}"
         raw_patch = patch.get("patch", f"Patch {patch_id}")
@@ -226,7 +226,7 @@ def build_leaf_nodes(patches: List[Dict[str, Any]]) -> List[TreeNode]:
             node_id=f"leaf_{patch_id}",
             depth=0,
             children=[],
-            steps=[patch_id],
+            patches=[patch_id],
             label=label,
             summary=summary,
             raw_patch=raw_patch,
@@ -503,7 +503,7 @@ def generate_node_guidance(
     """Generate summary and guidance for a parent node."""
     child_summaries = [n.summary for n in children]
     group_labels = [n.features.get("group_label", "") for n in children if n.features.get("group_label")]
-    all_steps = [s for n in children for s in n.steps]
+    all_patches = [p for n in children for p in n.patches]
     
     context_lines = [f"- {s}" for s in child_summaries[:6]]
     context_text = "\n".join(context_lines)
@@ -626,7 +626,7 @@ Guidance:
     ===== EXAMPLES =====
     {examples_string}
 
-    ===== CHILD NODES ({len(children)} items, {len(all_steps)} steps) =====
+    ===== CHILD NODES ({len(children)} items, {len(all_patches)} patches) =====
     {context_text}
 
     Return ONLY JSON:
@@ -674,11 +674,6 @@ Guidance:
         return label, summary, guidance
 
 
-def _step_index(step_id: str) -> int:
-    m = re.search(r"(\d+)$", step_id)
-    return int(m.group(1)) if m else 0
-
-
 def abstract_group(
     children: List[TreeNode],
     new_depth: int,
@@ -691,14 +686,14 @@ def abstract_group(
         children, new_depth, detail_level, estimated_max_depth, config
     )
     
-    all_steps = [s for n in children for s in n.steps]
+    # all_patches = [p for n in children for p in n.patches]
     node_id = f"L{new_depth}_{uuid.uuid4().hex[:8]}"
     
     return TreeNode(
         node_id=node_id,
         depth=new_depth,
         children=[n.node_id for n in children],
-        steps=all_steps,
+        patches=[p for n in children for p in n.patches],
         label=label,
         summary=summary,
         guidance=guidance,
@@ -815,10 +810,9 @@ def extract_layer_guidance(
 ) -> LayerGuidance:
     """Extract guidance for all nodes at a specific depth."""
     layer_nodes = [n for n in all_nodes.values() if n.depth == target_depth]
-    layer_nodes.sort(key=lambda n: min((_step_index(s) for s in n.steps), default=0))
     
     guidances = []
-    total_steps = 0
+    total_patches = 0
     
     for node in layer_nodes:
         guidances.append({
@@ -826,17 +820,17 @@ def extract_layer_guidance(
             "label": node.label,
             "summary": node.summary,
             "guidance": node.guidance,
-            "steps_covered": node.steps,
-            "num_steps": len(node.steps),
+            "patches_covered": node.patches,
+            "num_patches": len(node.patches),
         })
-        total_steps += len(node.steps)
+        total_patches += len(node.patches)
     
     formatted = format_layer_prompt(target_depth, guidances)
     
     return LayerGuidance(
         layer_depth=target_depth,
         node_count=len(layer_nodes),
-        total_steps_covered=total_steps,
+        total_patches_covered=total_patches,
         guidances=guidances,
         formatted_prompt=formatted,
     )
@@ -853,7 +847,7 @@ def format_layer_prompt(depth: int, guidances: List[Dict]) -> str:
         lines.append(f"## Item {i}: {g['label']}")
         lines.append(f"\n**Summary:**\n{g['summary']}")
         lines.append(f"\n**Guidance:**\n{g['guidance']}")
-        lines.append(f"\n*Covers {g['num_steps']} original steps*")
+        lines.append(f"\n*Covers {g['num_patches']} original patches*")
         lines.append("")
     
     return "\n".join(lines)
@@ -863,7 +857,7 @@ def create_experiment_package(
     cwe_id: str,
     root: TreeNode,
     all_nodes: Dict[str, TreeNode],
-    total_steps: int,
+    total_patches: int,
     max_depth: int
 ) -> ExperimentPackage:
     """Extracts guidance details layer by layer and packages them into an ExperimentPackage."""
@@ -880,12 +874,12 @@ def create_experiment_package(
             layer_stats.append({
                 "layer_depth": current_depth,
                 "node_count": layer_data.node_count,
-                "total_steps_covered": layer_data.total_steps_covered
+                "total_patches_covered": layer_data.total_patches_covered
             })
 
     return ExperimentPackage(
         cwe_id=cwe_id,
-        total_steps=total_steps,
+        total_patches=total_patches,
         tree_depth=max_depth,
         layer_guidances=layer_guidances,
         layer_stats=layer_stats
@@ -900,7 +894,7 @@ def node_to_dict(node: TreeNode) -> Dict:
         "node_id": node.node_id,
         "depth": node.depth,
         "children": node.children,
-        "steps": node.steps,
+        "patches": node.patches,
         "label": node.label,
         "summary": node.summary,
         "guidance": node.guidance,
@@ -913,7 +907,7 @@ def layer_guidance_to_dict(lg: LayerGuidance) -> Dict:
     return {
         "layer_depth": lg.layer_depth,
         "node_count": lg.node_count,
-        "total_steps_covered": lg.total_steps_covered,
+        "total_patches_covered": lg.total_patches_covered,
         "guidances": lg.guidances,
         "formatted_prompt": lg.formatted_prompt,
     }
@@ -922,7 +916,7 @@ def layer_guidance_to_dict(lg: LayerGuidance) -> Dict:
 def package_to_dict(pkg: ExperimentPackage) -> Dict:
     return {
         "cwe_id": pkg.cwe_id,
-        "total_steps": pkg.total_steps,
+        "total_patches": pkg.total_patches,
         "tree_depth": pkg.tree_depth,
         "layer_guidances": {
             str(k): layer_guidance_to_dict(v) 
@@ -969,7 +963,6 @@ def main():
     with open(args.input) as f:
         data = json.load(f)
     
-    # steps = data.get("steps", [])
     patches = data.get("patches", [])
     if not patches:
         print("No patches found in input")
@@ -1026,7 +1019,7 @@ def main():
     print("SUMMARY")
     print(f"{'='*60}")
     print(f"CWE: {args.cwe_id}")
-    print(f"Total steps: {len(patches)}")
+    print(f"Total patches: {len(patches)}")
     print(f"Tree depth: {max_depth}")
     print(f"Total nodes: {len(all_nodes)}")
     print(f"\nLayers for experiments:")
