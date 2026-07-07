@@ -1,0 +1,59 @@
+{
+  "prompt_templates": [
+    {
+      "id": "zero_shot",
+      "name": "Standard Zero-Shot",
+      "category": "direct",
+      "citation": {}, 
+      "description": "Directly asks the model to repair the vulnerability without providing examples or explicit reasoning.",
+      "template": "You are a software security expert.\n\nThe following code contains a vulnerability.\n\nRepair the vulnerability while preserving the original functionality.\n\nReturn the repaired code surrounded by <repaired_code> tags.\n\nCode:\n{code}"
+    },
+    {
+      "id": "few_shot",
+      "name": "Few-Shot Prompting",
+      "category": "few_shot",
+      "citation": {
+        "title": "Chain-of-Thought Prompting Elicits Reasoning in Large Language Models",
+        "authors": "Wei et al.",
+        "year": 2022
+      },
+      "description": "Provides one or more examples of vulnerable code and corresponding repairs before asking the model to repair the target program.",
+      "template": "You are a software security expert.\n\nExample 1\n\nVulnerable code:\n{example_vulnerable}\n\nExplanation:\n{example_explanation}\n\nFixed code:\n{example_fixed}\n\n---\n\nNow repair the following vulnerability.\n\nVulnerable code:\n{code}\n\nReturn the repaired code surrounded by <repaired_code> tags."
+    },
+    {
+      "id": "zero_shot_cot",
+      "name": "Zero-Shot Chain-of-Thought",
+      "category": "reasoning",
+      "citation": {
+        "title": "Chain-of-Thought Prompting Elicits Reasoning in Large Language Models",
+        "authors": "Wei et al.",
+        "year": 2022
+      },
+      "description": "Encourages the model to reason through the vulnerability before producing a repair.",
+      "template": "You are a software security expert.\n\nAnalyze the vulnerability.\n\nLet's think step by step.\n\nAfter identifying the vulnerability, produce a corrected version of the code.\n\nReturn the repaired code surrounded by <repaired_code> tags.\n\nCode:\n{code}"
+    },
+    {
+      "id": "plan_and_solve",
+      "name": "Plan-and-Solve",
+      "category": "reasoning",
+      "citation": {
+        "title": "Plan-and-Solve Prompting: Improving Zero-Shot Chain-of-Thought Reasoning by Large Language Models",
+        "authors": "Wang et al.",
+        "year": 2023
+      },
+      "description": "Separates reasoning into planning and execution stages before generating the repaired code.",
+      "template": "You are a software security expert.\n\nFirst, devise a plan for repairing the vulnerability.\n\nNext, execute the plan.\n\nFinally, produce the repaired code.\n\nReturn the repaired code surrounded by <repaired_code> tags.\n\nCode:\n{code}"
+    },
+    {
+      "id": "security_cot",
+      "name": "Security-Oriented Chain-of-Thought",
+      "category": "security_reasoning",
+      "citation": {
+        "title": "Chain-of-Thought Prompting of Large Language Models for Discovering and Fixing Software Vulnerabilities",
+        "year": 2024
+      },
+      "description": "Guides the model through security-specific reasoning prior to generating the repair.",
+      "template": "You are a software security expert.\n\nReason about the vulnerability before repairing it.\n\n1. Identify the vulnerability.\n2. Identify the statements responsible.\n3. Explain why the vulnerability occurs.\n4. Determine what must change.\n5. Produce the repaired code.\n\nReturn the repaired code surrounded by <repaired_code> tags.\n\nCode:\n{code}"
+    }
+  ]
+}

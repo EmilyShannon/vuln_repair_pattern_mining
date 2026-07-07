@@ -16,3 +16,6 @@ mining/cluster
 mining/scripts/reconstruct_trees.sh
 mining/summaries
 cluster_all_modes.sh
+data/cwec_v4.20.xml
+data/trees
+!data/tree/utils
