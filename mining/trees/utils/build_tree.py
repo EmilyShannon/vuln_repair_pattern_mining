@@ -15,6 +15,7 @@ import uuid
 import os
 import re
 import pandas as pd
+import numpy as np
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 from langchain_openai import ChatOpenAI
@@ -985,8 +986,8 @@ def main():
     # Config options
     # TODO we need to play with these. 
     parser.add_argument("--min-group-size", type=int, default=1)
-    parser.add_argument("--max-group-size", type=int, default=6)
-    parser.add_argument("--force-merge-threshold", type=int, default=3)
+    parser.add_argument("--max-group-size", type=int, default=np.inf)
+    parser.add_argument("--force-merge-threshold", type=int, default=2, help="If the number of nodes is <= this threshold, force merge into a single group")
     parser.add_argument("--model", default="gpt-5", help="LLM model to use")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--tree-type", choices=["vulnerability", "repair", "combined"], default="combined", help="Type of tree to build (affects prompts)")
