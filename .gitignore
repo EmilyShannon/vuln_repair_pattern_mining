@@ -19,3 +19,7 @@ cluster_all_modes.sh
 data/cwec_v4.20.xml
 data/trees
 !data/tree/utils
+eval/tree_building_inputs
+eval/tree_building_outputs
+mining/trees
+!mining/trees/utils

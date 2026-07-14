@@ -14,6 +14,7 @@ import json
 import uuid
 import os
 import re
+import pandas as pd
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 from langchain_openai import ChatOpenAI
@@ -198,24 +199,67 @@ def remove_bullet_formatting(text: str) -> str:
     # Join into paragraphs
     return ' '.join(cleaned_lines)
 
+# =========================
+# INPUT PROCESSING 
+# =========================
+
+def extract_patch_from_prompt(input_prompt):
+    # Assuming the patch comes after "Patch" and is the last part of the prompt
+    if "Patch" in input_prompt:
+        return input_prompt.split("Patch")[-1].strip()
+    return ""
+
+
+def make_json_safe(value: Any) -> Any:
+    """Recursively convert pandas and other non-JSON-native objects to plain Python types."""
+    if isinstance(value, pd.Series):
+        return {k: make_json_safe(v) for k, v in value.to_dict().items()}
+    if isinstance(value, pd.DataFrame):
+        return [make_json_safe(row) for row in value.to_dict(orient="records")]
+    if isinstance(value, dict):
+        return {k: make_json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [make_json_safe(v) for v in value]
+    if hasattr(value, "to_dict") and callable(value.to_dict):
+        try:
+            return make_json_safe(value.to_dict())
+        except Exception:
+            return str(value)
+    return value
+
+
+def prepare_patches_from_summary_files(input_df):
+    records = []
+    for _, row in input_df.iterrows():
+        patch = {
+            "patch_id": row['original_index'],
+            "cwe_id": row["cwe_id"],
+            "summary": row["summary"],
+            "patch": extract_patch_from_prompt(row["input_prompt"]),
+        }
+        records.append(patch)
+
+    return pd.DataFrame(records, columns=["patch_id", "cwe_id", "summary", "patch"])
 
 # =========================
 #  LEAF NODE CONSTRUCTION
 # =========================
 
-def extract_patch_features(patch: Dict[str, Any]) -> Dict[str, Any]:
-    """Extract relevant features from a raw patch"""    
+def extract_patch_features(patch: Any) -> Dict[str, Any]:
+    """Extract relevant features from a raw patch."""
+    patch_data = patch.to_dict() if hasattr(patch, "to_dict") and not isinstance(patch, dict) else patch
+    patch_data = make_json_safe(patch_data)
     return {
-        "raw_patch": patch,
-        "summary": patch.get("summary", ""),
+        "raw_patch": patch_data,
+        "summary": patch_data.get("summary", "") if isinstance(patch_data, dict) else "",
     }
 
 
-def build_leaf_nodes(patches: List[Dict[str, Any]]) -> List[TreeNode]:
+def build_leaf_nodes(patches: DataFrame) -> List[TreeNode]:
     """Convert patch info into leaf nodes without enforced sorting"""
     nodes = []
     
-    for patch in patches:
+    for _, patch in patches.iterrows():
         patch_id = str(patch["patch_id"])
         features = extract_patch_features(patch)
         summary = patch.get("summary", f"Patch {patch_id}")
@@ -731,7 +775,7 @@ def estimate_max_depth(num_leaves: int, config: TreeConfig) -> int:
 
 
 def build_tree(
-    patches: List[Dict[str, Any]],
+    patches: DataFrame,
     config: Optional[TreeConfig] = None,
 ) -> Tuple[TreeNode, Dict[str, TreeNode], int]:
     """Build abstraction tree dynamically."""
@@ -898,8 +942,8 @@ def node_to_dict(node: TreeNode) -> Dict:
         "label": node.label,
         "summary": node.summary,
         "guidance": node.guidance,
-        "features": node.features,
-        "provenance": node.provenance,
+        "features": make_json_safe(node.features),
+        "provenance": make_json_safe(node.provenance),
     }
 
 
@@ -934,9 +978,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Build dynamic abstraction tree and extract layer-wise guidance"
     )
-    # TODO make this a csv, either of full data or filtered for the CWE 
-    parser.add_argument("--input", default="/home/emsha/projects/vuln_repair_pattern_mining/mining/cluster/clusters/ollama/qwen3-coder_480b-cloud/orig/fix/cluster_summaries_CWE-120_1778266389.json", help="Input patches JSON")
-    parser.add_argument("--output-dir-base", default="/home/emsha/projects/vuln_repair_pattern_mining/mining/trees", help="Output directory")
+    parser.add_argument("--input", default="/home/emsha/projects/vuln_repair_pattern_mining/clusters/ollama/qwen3-coder_480b-cloud/orig/vul/cluster_summaries_CWE-120_1777927443.csv", help="The CSV containing the LLM-generated summary of the vulnerability or repair, plus the index and prompt")
+    parser.add_argument("--output-dir-base", default="/home/emsha/projects/vuln_repair_pattern_mining/mining/trees", help="Output directory for the tree and guidance files")
     parser.add_argument("--cwe-id", default="CWE-120", help="Vulnerability identifier")
     
     # Config options
@@ -961,13 +1004,10 @@ def main():
     
     # Load input
     print(f"Loading: {args.input}")
-    with open(args.input) as f:
-        data = json.load(f)
+
+    data = pd.read_csv(args.input)
     
-    patches = data.get("patches", [])
-    if not patches:
-        print("No patches found in input")
-        return
+    patches = prepare_patches_from_summary_files(data)
 
     # Build tree
     root, all_nodes, max_depth = build_tree(patches, config)
