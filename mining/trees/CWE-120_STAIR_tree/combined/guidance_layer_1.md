@@ -1,16 +1,32 @@
 # Layer 1 Guidance
-*2 guidance items at depth 1*
+*3 guidance items at depth 1*
 
-## Item 1: Unvalidated length fields and undersized buffers allow overflow and memory corruption.
+## Item 1: Insufficient length and capacity validation
 
-**Guidance:**
-Validate declared sizes against buffer capacity, compute effective copy length as the minimum of available space and input size, and reject or truncate when limits are exceeded. Allocate buffers for worst-case input plus delimiters, detect size arithmetic overflow, and explicitly terminate written data to prevent overflow and unterminated states.
-
-*Covers 4 original steps*
-
-## Item 2: Missing length and range checks enable buffer overflows and out-of-bounds access.
+**Summary:**
+String and buffer operations rely on unchecked sizes, including accessing a last character on empty strings and copying data without verifying capacity, while user-influenced precision values can inflate required space, resulting in out-of-bounds reads or writes.
 
 **Guidance:**
-Validate incoming length fields and code values against strict maximums before any access or copy, rejecting or truncating at safe limits, and ensure copied data is explicitly terminated. Allocate buffers for the largest accepted payload plus terminators, apply bounds-checked transfers to configuration data, and guard against integer overflow in size calculations.
+Enforce size and bounds validation before any string or buffer access; constrain precision-driven sizes to safe limits; and ensure buffers have sufficient capacity before modification to keep all operations within verified boundaries.
 
-*Covers 5 original steps*
+*Covers 3 original patches*
+
+## Item 2: Insufficient bounds checks on sizes and indices
+
+**Summary:**
+Insufficient validation of externally influenced lengths and indices allows operations to exceed buffer or array bounds. Out-of-range codes trigger unsafe memory resizing, and format-dependent parsing miscomputes required capacities, causing overflows or out-of-bounds access during string handling and data decoding.
+
+**Guidance:**
+Validate all input-driven sizes and indices before use, deriving acceptable capacities from the data format. Constrain string and buffer operations to verified limits, reject or truncate excess data, and fail safely when indices fall outside mapping ranges.
+
+*Covers 3 original patches*
+
+## Item 3: Buffer overflow via unchecked sizes and misallocation
+
+**Summary:**
+Missing bounds checks, size validation, and termination allow data operations to exceed buffer capacity, causing overflow and memory corruption. Underestimated allocations, including not accounting for fallback strings, further enable out-of-bounds writes and unterminated data.
+
+**Guidance:**
+Validate input lengths against buffer capacity, allocate for worst-case content including fallbacks, and restrict writes to verified limits. Always terminate resulting data and fail early when space is insufficient to avoid overflows and unterminated results.
+
+*Covers 3 original patches*

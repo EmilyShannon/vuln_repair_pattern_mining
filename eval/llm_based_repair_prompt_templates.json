@@ -18,7 +18,7 @@
         "year": 2022
       },
       "description": "Provides one or more examples of vulnerable code and corresponding repairs before asking the model to repair the target program.",
-      "template": "You are a software security expert.\n\nExample 1\n\nVulnerable code:\n{example_vulnerable}\n\nExplanation:\n{example_explanation}\n\nFixed code:\n{example_fixed}\n\n---\n\nNow repair the following vulnerability.\n\nVulnerable code:\n{code}\n\nReturn the repaired code surrounded by <repaired_code> tags."
+      "template": "You are a software security expert.\n\nThe following code contains a vulnerability.\n\nRepair the vulnerability while preserving the original functionality.\n\nReturn the repaired code surrounded by <repaired_code> tags.\n\nCode:\n{code} \n\n Here are examples of similar vulnerabilities and their repaired code: \n\n"
     },
     {
       "id": "zero_shot_cot",

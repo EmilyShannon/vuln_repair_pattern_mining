@@ -16,9 +16,12 @@ import os
 import re
 import pandas as pd
 import numpy as np
+import ollama
+import sys
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
-from langchain_openai import ChatOpenAI
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv() 
@@ -40,8 +43,9 @@ class TreeConfig:
     # LLM settings for stability
     temperature: float = 0.0
     model: str = "gpt-5"
-    tree_type: str = "repair"  # or "vulnerability"
-
+    provider: str = "openai"
+    tree_type: str = "combined"  # or "vulnerability"
+    max_tokens: int = 100000
 
 # =========================
 #  DATA STRUCTURES
@@ -99,27 +103,71 @@ class ExperimentPackage:
 # =========================
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", None)
+OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY", None)
 
-def get_llm(temperature: float = 0.0, max_tokens: int = 4000000):
-    return ChatOpenAI(
-        model="gpt-5",
-        temperature=temperature,
-        max_tokens=max_tokens,
-        timeout=720,
-        stop=None,
-        max_retries=3,
-        openai_api_key=OPENAI_API_KEY,
-        reasoning={
-            "effort": "high"
-        },
-        text={
-            "verbosity": "high"
-        }
-    )
+def get_llm(config):
+    if config.provider == "openai":
+        return OpenAI(
+            api_key=OPENAI_API_KEY
+        )
+
+    elif config.provider == "ollama":
+        return ollama.Client()
+
+    else:
+        raise ValueError(
+            f"Unsupported provider: {config.provider}"
+        )
+
+def generate_response(config, prompt):
+    if config.provider == "openai":
+        client = OpenAI(api_key=OPENAI_API_KEY)
+
+        response = client.responses.create(
+            model=config.model,
+            temperature=config.temperature,
+            input=prompt,
+            max_output_tokens=config.max_tokens,
+            reasoning={
+                "effort": "high"
+            },
+            text={
+                "verbosity": "high"
+            },
+        )
+
+        return response.output_text
+
+    elif config.provider == "ollama":
+        client = ollama.Client()
+
+        response = client.chat(
+            model=config.model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            options={
+                "num_predict": config.max_tokens,
+                "temperature": config.temperature,
+            },
+        )
+
+        return response["message"]["content"]
+
+    else:
+        raise ValueError(
+            f"Unsupported provider: {config.provider}"
+        )
 
 def parse_llm_response(response) -> str:
     """Extract string from LLM response"""
-    content = response.content
+    if isinstance(response, str):
+        content = response
+    else:
+        content = response.content
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -211,6 +259,35 @@ def extract_patch_from_prompt(input_prompt):
     return ""
 
 
+def split_summary_components(summary_value: Any) -> Tuple[str, str]:
+    """Split a summary field into vulnerability and strategy components."""
+    if summary_value is None:
+        return "", ""
+
+    text = str(summary_value).strip()
+    if not text:
+        return "", ""
+
+    vuln_match = re.search(
+        r"VUL_SUMMARY\s*:\s*(.*?)(?=\n\s*STRATEGY_SUMMARY\s*:|$)",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    strategy_match = re.search(
+        r"STRATEGY_SUMMARY\s*:\s*(.*)",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    vuln_summary = (vuln_match.group(1) if vuln_match else text).strip()
+    strategy_summary = (strategy_match.group(1) if strategy_match else "").strip()
+
+    if not vuln_summary and strategy_summary:
+        vuln_summary = strategy_summary
+
+    return vuln_summary, strategy_summary
+
+
 def make_json_safe(value: Any) -> Any:
     """Recursively convert pandas and other non-JSON-native objects to plain Python types."""
     if isinstance(value, pd.Series):
@@ -231,16 +308,30 @@ def make_json_safe(value: Any) -> Any:
 
 def prepare_patches_from_summary_files(input_df):
     records = []
-    for _, row in input_df.iterrows():
+    for idx, row in input_df.iterrows():
+        raw_summary = row.get("summary", "")
+        vul_summary, strategy_summary = split_summary_components(raw_summary)
+
+        if not vul_summary and "vul_summary" in row:
+            vul_summary = str(row.get("vul_summary", "")).strip()
+        if not strategy_summary and "strategy_summary" in row:
+            strategy_summary = str(row.get("strategy_summary", "")).strip()
+
+        prompt_text = row.get("input_prompt", row.get("prompt", ""))
         patch = {
-            "patch_id": row['original_index'],
-            "cwe_id": row["cwe_id"],
-            "summary": row["summary"],
-            "patch": extract_patch_from_prompt(row["input_prompt"]),
+            "patch_id": row.get("original_index", idx),
+            "cwe_id": row.get("cwe_id", row.get("cwe", "")),
+            "summary": vul_summary or raw_summary,
+            "vul_summary": vul_summary,
+            "strategy_summary": strategy_summary,
+            "patch": extract_patch_from_prompt(prompt_text),
         }
         records.append(patch)
 
-    return pd.DataFrame(records, columns=["patch_id", "cwe_id", "summary", "patch"])
+    return pd.DataFrame(
+        records,
+        columns=["patch_id", "cwe_id", "summary", "vul_summary", "strategy_summary", "patch"],
+    )
 
 # =========================
 #  LEAF NODE CONSTRUCTION
@@ -315,7 +406,7 @@ def group_nodes_by_llm(
             context_lines.append(line)
 
     context_text = "\n\n".join(context_lines)
-    print(f"  -> Grouping context:\n{context_text}\n")
+    # print(f"  -> Grouping context:\n{context_text}\n")
     suggested_groups = max(2, min(5, len(nodes) // 3))
     
     if config.tree_type == "vulnerability":
@@ -363,10 +454,10 @@ Return JSON:
 All IDs from 0 to {len(nodes) - 1} must be covered exactly once.
 """
     
-    llm = get_llm()
+    llm = get_llm(config)
     
     try:
-        response = llm.invoke(prompt)
+        response = generate_response(config, prompt)
         data = parse_json(parse_llm_response(response))
         
         groups_data = data.get("groups", [])
@@ -681,10 +772,10 @@ Guidance:
     "guidance": "1-2 sentences under {max_words} words"
     }}"""
         
-    llm = get_llm()
+    llm = get_llm(config)
     
     try:
-        response = llm.invoke(prompt)
+        response = generate_response(config, prompt)
         data = parse_json(parse_llm_response(response))
         
         label = data.get("label", "")
@@ -979,8 +1070,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Build dynamic abstraction tree and extract layer-wise guidance"
     )
-    parser.add_argument("--input", default="/home/emsha/projects/vuln_repair_pattern_mining/clusters/ollama/qwen3-coder_480b-cloud/orig/vul/cluster_summaries_CWE-120_1777927443.csv", help="The CSV containing the LLM-generated summary of the vulnerability or repair, plus the index and prompt")
-    parser.add_argument("--output-dir-base", default="/home/emsha/projects/vuln_repair_pattern_mining/mining/trees", help="Output directory for the tree and guidance files")
+    parser.add_argument("--input", help="The JSONL file containing the LLM-generated summary of the vulnerability or repair, plus the index and prompt")
+    parser.add_argument("--output-dir", default="/home/emsha/projects/vuln_repair_pattern_mining/mining/trees", help="Output directory for the tree and guidance files")
     parser.add_argument("--cwe-id", default="CWE-120", help="Vulnerability identifier")
     
     # Config options
@@ -988,8 +1079,11 @@ def main():
     parser.add_argument("--min-group-size", type=int, default=1)
     parser.add_argument("--max-group-size", type=int, default=np.inf)
     parser.add_argument("--force-merge-threshold", type=int, default=2, help="If the number of nodes is <= this threshold, force merge into a single group")
+    parser.add_argument("--provider", choices=["ollama", "openai"])
     parser.add_argument("--model", default="gpt-5", help="LLM model to use")
     parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--max-tokens", type=int, default=10000)
+    
     parser.add_argument("--tree-type", choices=["vulnerability", "repair", "combined"], default="combined", help="Type of tree to build (affects prompts)")
     
     args = parser.parse_args()
@@ -998,16 +1092,18 @@ def main():
         min_group_size=args.min_group_size,
         max_group_size=args.max_group_size,
         force_merge_threshold=args.force_merge_threshold,
+        provider=args.provider,
         model=args.model,
         temperature=args.temperature,
         tree_type=args.tree_type,
+        max_tokens=args.max_tokens
     )
     
     # Load input
     print(f"Loading: {args.input}")
 
-    data = pd.read_csv(args.input)
-    
+    data = pd.read_json(args.input, lines=True)
+
     patches = prepare_patches_from_summary_files(data)
 
     # Build tree
@@ -1019,7 +1115,7 @@ def main():
     )
     
     # Create output directory
-    output_dir = os.path.join(args.output_dir_base, args.tree_type, args.cwe_id)
+    output_dir = os.path.join(args.output_dir, args.tree_type, args.cwe_id)
     os.makedirs(output_dir, exist_ok=True)
     
     # Save tree

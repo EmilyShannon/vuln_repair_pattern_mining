@@ -1,51 +1,63 @@
 {
   "cwe_id": "CWE-120",
-  "total_steps": 9,
+  "total_patches": 9,
   "tree_depth": 2,
   "layer_guidances": {
     "1": {
       "layer_depth": 1,
-      "node_count": 2,
-      "total_steps_covered": 9,
+      "node_count": 3,
+      "total_patches_covered": 9,
       "guidances": [
         {
-          "node_id": "L1_9d5005c8",
-          "summary": "Unvalidated length fields and undersized buffers allow overflow and memory corruption.",
-          "guidance": "Validate declared sizes against buffer capacity, compute effective copy length as the minimum of available space and input size, and reject or truncate when limits are exceeded. Allocate buffers for worst-case input plus delimiters, detect size arithmetic overflow, and explicitly terminate written data to prevent overflow and unterminated states.",
-          "steps_covered": [
-            "323",
+          "node_id": "L1_b38c17c7",
+          "label": "Insufficient length and capacity validation",
+          "summary": "String and buffer operations rely on unchecked sizes, including accessing a last character on empty strings and copying data without verifying capacity, while user-influenced precision values can inflate required space, resulting in out-of-bounds reads or writes.",
+          "guidance": "Enforce size and bounds validation before any string or buffer access; constrain precision-driven sizes to safe limits; and ensure buffers have sufficient capacity before modification to keep all operations within verified boundaries.",
+          "patches_covered": [
+            "3848",
+            "6348",
+            "5165"
+          ],
+          "num_patches": 3
+        },
+        {
+          "node_id": "L1_ade56e34",
+          "label": "Insufficient bounds checks on sizes and indices",
+          "summary": "Insufficient validation of externally influenced lengths and indices allows operations to exceed buffer or array bounds. Out-of-range codes trigger unsafe memory resizing, and format-dependent parsing miscomputes required capacities, causing overflows or out-of-bounds access during string handling and data decoding.",
+          "guidance": "Validate all input-driven sizes and indices before use, deriving acceptable capacities from the data format. Constrain string and buffer operations to verified limits, reject or truncate excess data, and fail safely when indices fall outside mapping ranges.",
+          "patches_covered": [
+            "6293",
+            "6342",
+            "323"
+          ],
+          "num_patches": 3
+        },
+        {
+          "node_id": "L1_53c7f883",
+          "label": "Buffer overflow via unchecked sizes and misallocation",
+          "summary": "Missing bounds checks, size validation, and termination allow data operations to exceed buffer capacity, causing overflow and memory corruption. Underestimated allocations, including not accounting for fallback strings, further enable out-of-bounds writes and unterminated data.",
+          "guidance": "Validate input lengths against buffer capacity, allocate for worst-case content including fallbacks, and restrict writes to verified limits. Always terminate resulting data and fail early when space is insufficient to avoid overflows and unterminated results.",
+          "patches_covered": [
             "451",
             "456",
             "510"
           ],
-          "num_steps": 4
-        },
-        {
-          "node_id": "L1_6465b436",
-          "summary": "Missing length and range checks enable buffer overflows and out-of-bounds access.",
-          "guidance": "Validate incoming length fields and code values against strict maximums before any access or copy, rejecting or truncating at safe limits, and ensure copied data is explicitly terminated. Allocate buffers for the largest accepted payload plus terminators, apply bounds-checked transfers to configuration data, and guard against integer overflow in size calculations.",
-          "steps_covered": [
-            "3848",
-            "6348",
-            "5165",
-            "6293",
-            "6342"
-          ],
-          "num_steps": 5
+          "num_patches": 3
         }
       ],
-      "formatted_prompt": "# Layer 1 Guidance\n*2 guidance items at depth 1*\n\n## Item 1: Unvalidated length fields and undersized buffers allow overflow and memory corruption.\n\n**Guidance:**\nValidate declared sizes against buffer capacity, compute effective copy length as the minimum of available space and input size, and reject or truncate when limits are exceeded. Allocate buffers for worst-case input plus delimiters, detect size arithmetic overflow, and explicitly terminate written data to prevent overflow and unterminated states.\n\n*Covers 4 original steps*\n\n## Item 2: Missing length and range checks enable buffer overflows and out-of-bounds access.\n\n**Guidance:**\nValidate incoming length fields and code values against strict maximums before any access or copy, rejecting or truncating at safe limits, and ensure copied data is explicitly terminated. Allocate buffers for the largest accepted payload plus terminators, apply bounds-checked transfers to configuration data, and guard against integer overflow in size calculations.\n\n*Covers 5 original steps*\n"
+      "formatted_prompt": "# Layer 1 Guidance\n*3 guidance items at depth 1*\n\n## Item 1: Insufficient length and capacity validation\n\n**Summary:**\nString and buffer operations rely on unchecked sizes, including accessing a last character on empty strings and copying data without verifying capacity, while user-influenced precision values can inflate required space, resulting in out-of-bounds reads or writes.\n\n**Guidance:**\nEnforce size and bounds validation before any string or buffer access; constrain precision-driven sizes to safe limits; and ensure buffers have sufficient capacity before modification to keep all operations within verified boundaries.\n\n*Covers 3 original patches*\n\n## Item 2: Insufficient bounds checks on sizes and indices\n\n**Summary:**\nInsufficient validation of externally influenced lengths and indices allows operations to exceed buffer or array bounds. Out-of-range codes trigger unsafe memory resizing, and format-dependent parsing miscomputes required capacities, causing overflows or out-of-bounds access during string handling and data decoding.\n\n**Guidance:**\nValidate all input-driven sizes and indices before use, deriving acceptable capacities from the data format. Constrain string and buffer operations to verified limits, reject or truncate excess data, and fail safely when indices fall outside mapping ranges.\n\n*Covers 3 original patches*\n\n## Item 3: Buffer overflow via unchecked sizes and misallocation\n\n**Summary:**\nMissing bounds checks, size validation, and termination allow data operations to exceed buffer capacity, causing overflow and memory corruption. Underestimated allocations, including not accounting for fallback strings, further enable out-of-bounds writes and unterminated data.\n\n**Guidance:**\nValidate input lengths against buffer capacity, allocate for worst-case content including fallbacks, and restrict writes to verified limits. Always terminate resulting data and fail early when space is insufficient to avoid overflows and unterminated results.\n\n*Covers 3 original patches*\n"
     },
     "2": {
       "layer_depth": 2,
       "node_count": 1,
-      "total_steps_covered": 9,
+      "total_patches_covered": 9,
       "guidances": [
         {
-          "node_id": "L2_f948481c",
-          "summary": "Unvalidated size metadata from untrusted inputs enables out-of-bounds writes and memory corruption.",
-          "guidance": "Perform strict length verification, cross-validate reported sizes with actual content and available storage, and cap operations to verified limits. Derive resource allocation from validated maxima, adopt fail-closed behavior, and reject malformed or inconsistent records to prevent unsafe access.",
-          "steps_covered": [
+          "node_id": "L2_e2ffe54a",
+          "label": "Insufficient bounds and capacity validation",
+          "summary": "Insufficient validation of externally influenced sizes and indices lets string and buffer operations exceed allocated bounds, causing overflows, out-of-bounds access, and unterminated data. Miscalculated capacities during formatting or fallback behaviors exacerbate the risk.",
+          "guidance": "Validate and constrain data-dependent sizes and indices before processing, compute required capacity from trusted limits, and ensure termination so all accesses remain within allocated memory.",
+          "patches_covered": [
             "3848",
             "6348",
             "5165",
@@ -56,22 +68,22 @@
             "456",
             "510"
           ],
-          "num_steps": 9
+          "num_patches": 9
         }
       ],
-      "formatted_prompt": "# Layer 2 Guidance\n*1 guidance items at depth 2*\n\n## Item 1: Unvalidated size metadata from untrusted inputs enables out-of-bounds writes and memory corruption.\n\n**Guidance:**\nPerform strict length verification, cross-validate reported sizes with actual content and available storage, and cap operations to verified limits. Derive resource allocation from validated maxima, adopt fail-closed behavior, and reject malformed or inconsistent records to prevent unsafe access.\n\n*Covers 9 original steps*\n"
+      "formatted_prompt": "# Layer 2 Guidance\n*1 guidance items at depth 2*\n\n## Item 1: Insufficient bounds and capacity validation\n\n**Summary:**\nInsufficient validation of externally influenced sizes and indices lets string and buffer operations exceed allocated bounds, causing overflows, out-of-bounds access, and unterminated data. Miscalculated capacities during formatting or fallback behaviors exacerbate the risk.\n\n**Guidance:**\nValidate and constrain data-dependent sizes and indices before processing, compute required capacity from trusted limits, and ensure termination so all accesses remain within allocated memory.\n\n*Covers 9 original patches*\n"
     }
   },
   "layer_stats": [
     {
       "layer_depth": 1,
-      "node_count": 2,
-      "total_steps_covered": 9
+      "node_count": 3,
+      "total_patches_covered": 9
     },
     {
       "layer_depth": 2,
       "node_count": 1,
-      "total_steps_covered": 9
+      "total_patches_covered": 9
     }
   ]
 }

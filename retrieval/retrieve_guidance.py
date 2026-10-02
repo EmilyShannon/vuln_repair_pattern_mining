@@ -1,4 +1,5 @@
 from openai import OpenAI
+from ollama import Client as OllamaClient
 from typing import Optional
 from dotenv import load_dotenv
 from argparse import ArgumentParser
@@ -6,11 +7,40 @@ import json
 import os
 import pandas as pd
 
-load_dotenv()
-client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+# load_dotenv()
+# client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+# TODO makke llm calling and response extraction utilities for both files to use
+def extract_ollama_response(response: Any) -> str:
+    if response is None:
+        return ""
+    if isinstance(response, str):
+        return response.strip()
+    if isinstance(response, dict):
+        if "response" in response and isinstance(response["response"], str):
+            return response["response"].strip()
+        if "message" in response:
+            return extract_ollama_response(response["message"])
+        if "content" in response and isinstance(response["content"], str):
+            return response["content"].strip()
+        if "content" in response and isinstance(response["content"], list):
+            parts = []
+            for item in response["content"]:
+                if isinstance(item, dict):
+                    if isinstance(item.get("text"), str):
+                        parts.append(item["text"])
+                    elif isinstance(item.get("content"), str):
+                        parts.append(item["content"])
+            if parts:
+                return "\n".join(parts).strip()
+    if hasattr(response, "response"):
+        return extract_ollama_response(getattr(response, "response"))
+    if hasattr(response, "message"):
+        return extract_ollama_response(getattr(response, "message"))
+    if hasattr(response, "content"):
+        return extract_ollama_response(getattr(response, "content"))
+    return str(response).strip()
 
-
-def process_vulnerable_code(code: str, cwe_id: str, detail_level: Optional[str], description: Optional[str]):
+def process_vulnerable_code(client, provider, model, code: str, cwe_id: str, detail_level: Optional[str], description: Optional[str]):
     # Generate a summary of the vulnerable code 
     prompt = f"""
         Generate a concise vulnerability summary for this vulnerable code, at the appropriate level of detail. Return ONLY the summary, without any additional explanation or formatting.
@@ -27,26 +57,39 @@ def process_vulnerable_code(code: str, cwe_id: str, detail_level: Optional[str],
         DESCRIPTION: {description}
 
         """
-    response = client.responses.create(
-        model="gpt-5",
-        input=[
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-    )
+    if provider == "openai":
+        response = client.responses.create(
+            model=model,
+            input=[{"role": "user", "content": prompt}],
+        )
+        return response.output_text.strip()
+    if provider == "ollama":
+        try:
+            response = client.generate(model=model, prompt=prompt)
+        except Exception as exc:
+            return f"[ollama error: {exc}]"
+        return extract_ollama_response(response)
+    raise ValueError(f"Unsupported provider: {provider}")
+    # response = client.responses.create(
+    #     model="gpt-5",
+    #     input=[
+    #         {
+    #             "role": "user",
+    #             "content": prompt
+    #         }
+    #     ],
+    # )
     return response.output_text.strip()
 
 
-def retrieve_most_similar_summary(tree: str, vuln_code_summary: str, cwe_id: str, description: Optional[str]):
+def retrieve_most_similar_summary(client, provider, model, tree: str, vuln_code_summary: str, cwe_id: str, description: Optional[str]):
     # Parse the json tree and compare the vulnerability summary to the summaries in the tree, returning the most similar one
     prompt = f"""
         Given the following vulnerability summary and CWE description, find the most similar node in the provided JSON tree, using its summary. 
         
         Return:
         1) the summary of the most similar node, with its node ID, labbelled as "MOST_SIMILAR_SUMMARY: <summary>" and "MOST_SIMILAR_NODE_ID: <node_id>", each followed by a newline, and 
-         2) a brief explanation, labelled "EXPLANATION: <explanation>", folowed by a newline, of why this node is the most similar. Specifically, justify why the vulnerability does not match with the finer-grained vulnerabilities from the next layer down.
+         2) a brief explanation, labelled "EXPLANATION: <explanation>", folowed by a newline, of why this node is the most similar. Specifically, justify why the vulnerability does not match with any of the finer-grained vulnerabilities from the next layer down.
         
         VULNERABILITY SUMMARY:
         {vuln_code_summary}
@@ -55,17 +98,22 @@ def retrieve_most_similar_summary(tree: str, vuln_code_summary: str, cwe_id: str
         JSON TREE:
         {tree}
         """
-    response = client.responses.create(
-        model="gpt-5",
-        input=[
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-    )
+    if provider == "openai":
+        response = client.responses.create(
+            model=model,
+            input=[{"role": "user", "content": prompt}],
+        )
+        output = response.output_text.strip()
+    if provider == "ollama":
+        try:
+            response = client.generate(model=model, prompt=prompt)
+        except Exception as exc:
+            return f"[ollama error: {exc}]"
+        output = extract_ollama_response(response)
+    else:
+        raise ValueError(f"Unsupported provider: {provider}")
+
     # Find the id, summary and explanation in the response
-    output = response.output_text.strip()
     most_similar_summary = None
     most_similar_node_id = None
     explanation = None
@@ -122,7 +170,7 @@ def extract_guidance(subtree: list):
     return guidance
 
 
-def retrieve_guidance(vul_code: str, cwe_id: str, description: Optional[str], tree_json: dict, cache_path: str):
+def retrieve_guidance(client, provider, model, vul_code: str, cwe_id: str, description: Optional[str], tree_json: dict, cache_path: str):
     """
     Main function updated to check the CSV cache before hitting the LLM.
     """
@@ -144,8 +192,8 @@ def retrieve_guidance(vul_code: str, cwe_id: str, description: Optional[str], tr
     else:
         print("Cache miss. Generating LLM responses...")
         detail_level = "high"
-        vuln_code_summary = process_vulnerable_code(vul_code, cwe_id, detail_level, description)
-        most_similar_summary, most_similar_summary_id, explanation = retrieve_most_similar_summary(json.dumps(tree_json), vuln_code_summary, cwe_id, description)
+        vuln_code_summary = process_vulnerable_code(client=client, provider=provider, model=model, code=vul_code, cwe_id=cwe_id, detail_level=detail_level, description=description)
+        most_similar_summary, most_similar_summary_id, explanation = retrieve_most_similar_summary(client, provider, model, json.dumps(tree_json), vuln_code_summary, cwe_id, description)
         
         # 3. Save the new LLM generations to the cache and write to CSV
         new_row = pd.DataFrame([{
@@ -183,49 +231,3 @@ def remove_first_line(text: Optional[str]) -> str:
             i += 1
 
     return "\n".join(lines[i:])
-
-
-if __name__ == "__main__":
-    argparser = ArgumentParser()   
-    # argparser.add_argument("--input", default="/home/emsha/projects/vuln_repair_pattern_mining/mining/cluster/clusters/ollama/qwen3-coder_480b-cloud/orig/fix/cluster_summaries_CWE-120_1778266389.json", help="Input patches JSON")
-    argparser.add_argument("--input", default="/home/emsha/projects/vuln_repair_pattern_mining/mining/cluster/clusters/ollama/qwen3-coder_480b-cloud/orig/vul/cluster_summaries_CWE-125_1778265969.json", help="Input patches JSON")
-    
-    
-    args = argparser.parse_args()
-
-    input_to_test = args.input 
-
-    with open(input_to_test, "r") as file:
-        test_data = json.load(file)
-
-    original_data_path =  "/home/emsha/projects/vuln_repair_pattern_mining/data/primevul_train_cleaned.csv"
-    tree_path = "/home/emsha/projects/vuln_repair_pattern_mining/mining/trees/CWE-125_STAIR_tree/combined/tree.json"
-    cache_path = "/home/emsha/projects/vuln_repair_pattern_mining/retrieval/retrieval_cache.csv"    
-
-    with open(original_data_path, "r") as file:
-        data = pd.read_csv(file)
-
-    print(data.groupby("cwe").size().sort_values(ascending=False))
-    with open(tree_path, "r", encoding="utf-8") as f:
-        tree_json = json.load(f)
-
-    data = data[data["cwe"] == "CWE-125"]
-
-    # Testing on the first row
-    row = data.iloc[0]
-    vuln_code = remove_first_line(row["patch"])
-    print(f"Testing on vulnerable code:\n{vuln_code}\n")
-    cwe_id = row["cwe"]
-    description = row["message"]
-
-    # FIXED: Replaced duplicate LLM calls with a single call to retrieve_guidance
-    guidance, vuln_code_summary, most_similar_summary, most_similar_summary_id, explanation = retrieve_guidance(
-        vuln_code, cwe_id, description, tree_json, cache_path
-    )
-
-    print(f"Vulnerability Summary: {vuln_code_summary}")
-    print(f"Most Similar Summary in Tree: {most_similar_summary}")
-    print(f"Most Similar Node ID: {most_similar_summary_id}")
-    print(f"Explanation: {explanation}")
-    print(f"Retrieved Guidance: {guidance}")
-    print("--------------------------------------------------")

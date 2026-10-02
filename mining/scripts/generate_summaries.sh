@@ -141,20 +141,21 @@ cd ../summary_gen
 #ra   :::+ orig hybrid semantic \
 #   :::+ /home/emsha/projects/vuln_repair_pattern_mining/mining/summaries/ollama/qwen3-coder_480b-cloud/orig/nl_summaries_1773443131.jsonl /home/emsha/projects/vuln_repair_pattern_mining/mining/summaries/ollama/qwen3-coder_480b-cloud/hybrid/nl_summaries_1773443134.jsonl /home/emsha/projects/vuln_repair_pattern_mining/mining/summaries/ollama/qwen3-coder_480b-cloud/semantic/nl_summaries_1773443136.jsonl
 
-parallel --tag --ungroup -j 3 python3 generate_nl_summaries.py \
-  --input /home/emsha/projects/vuln_repair_pattern_mining/data/primevul_train.csv \
+python3 generate_nl_summaries.py \
+  --input /home/emsha/projects/vuln_repair_pattern_mining/data/extracted/titanvul_train.csv \
   --patch_column 'patch' \
-  --cwe_column 'cwe' \
-  --commit-message_column 'message' \
-  --provider-name {1} \
-  --model-name {2} \
-  --prompt_mode {3} ::: ollama ::: "deepseek-v3.2:cloud" ::: orig hybrid semantic
+  --cwe_column 'cwe_id' \
+  --commit-message_column 'commit_message' \
+  --provider-name "ollama" \
+  --model-name "zerocopia/deepseek-v4-flash:cloud" \
+  --prompt_mode "orig" \
+  --num-variants 1
 
-parallel --tag --ungroup -j 3 python3 generate_nl_summaries.py \
-  --input /home/emsha/projects/vuln_repair_pattern_mining/data/primevul_train.csv \
-  --patch_column 'patch' \
-  --cwe_column 'cwe' \
-  --commit-message_column 'message' \
-  --provider-name {1} \
-  --model-name {2} \
-  --prompt_mode {3} ::: openai ::: "gpt-5.1" "gpt-5-mini" ::: orig hybrid semantic
+# parallel --tag --ungroup -j 3 python3 generate_nl_summaries.py \
+#   --input /home/emsha/projects/vuln_repair_pattern_mining/data/extracted/titanvul_train.csv \
+#   --patch_column 'patch' \
+#   --cwe_column 'cwe_id' \
+#   --commit-message_column 'commit_message' \
+#   --provider-name {1} \
+#   --model-name {2} \
+#   --prompt_mode {3} ::: openai ::: "gpt-5.1" "gpt-5-mini" ::: orig hybrid semantic

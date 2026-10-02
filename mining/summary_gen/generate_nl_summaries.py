@@ -45,11 +45,6 @@ argparse.add_argument(
     default="commit_message",
     help="Name of the column in the CSV that contains the commit message"
 )
-# argparse.add_argument(
-#     "--multi-file_column",
-#     default="multi_file",
-#     help="Name of the column in the CSV that indicates whether the commit modifies multiple files"
-# )
 
 argparse.add_argument(
     "--language_column",
@@ -98,12 +93,10 @@ load_dotenv()
 print("OLLAMA_API_KEY exists:", os.environ.get("OLLAMA_API_KEY") is not None)
 print("OPENAI_API_KEY exists:", os.environ.get("OPENAI_API_KEY") is not None)
 provider = args.provider_name.lower()
+
 if provider == "ollama":
     model_name = args.model_name if args.model_name else "qwen3-coder:30b-cloud"
-    client = Client(
-        host="https://ollama.com",
-        headers={'Authorization': 'Bearer ' + os.environ.get('OLLAMA_API_KEY')}
-    )
+    client = Client(host="http://localhost:11434")
 
 elif provider == "openai":
     model_name = args.model_name if args.model_name else "gpt-5.1"
@@ -113,17 +106,14 @@ elif provider == "openai":
 
 prompt_mode = args.prompt_mode.lower()
 if prompt_mode == "orig":
-    prompt_base = """Given the following information from a vulnerability-fixing commit, generate 1) a one-sentence summary of the vulnerability being fixed, and 2) a one-sentence summary of the strategy being used to repair the vulnerability.  Do NOT include the patch content in your summaries. Focus on decribing the vulnerabililty itself, and the repair strategy, respecively. Output the summariies like this: "VUL_SUMMARY: <vul_summary>" and "STRATEGY_SUMMARY: <strat_summary>"."""
-    # vul_prompt_base = """Given the following information from a vulnerability-fixing commit, generate a one-sentence summary of the vulnerability being fixed.  Do NOT include the patch content in your summary. Focus on describing the vulnerability itself."""
+    prompt_base = """Given the following information from a vulnerability-fixing commit, generate 1) a concise, detailed 1 to 2 sentence-long summary of the vulnerability being fixed, and 2) a concise, detailed 1 to 2 sentence-long summary of the strategy being used to repair the vulnerability.  Do NOT include the patch content in your summaries. Focus on decribing the vulnerabililty itself, and the repair strategy, respecively. Output the summariies like this: "VUL_SUMMARY: <vul_summary>" and "STRATEGY_SUMMARY: <strat_summary>"."""
 
 if prompt_mode == "hybrid":
-    prompt_base = """Given the following information from a vulnerability-fixing commit, generate 1) a one-sentence summary of the vulnerability being fixed, and 2) a one-sentence summary of the strategy being used to repair the vulnerability.  Do NOT include the patch content in your summaries. Focus on decribing the vulnerabililty itself, and the repair strategy, respecively. Omit implementation-specific details unless they are critical to the vulnerability or repair, e.g.,  if the vulnerability is due to a specific function call or library usage, or the repair is done by adding a function call from a security library. Output the summariies like this: "VUL_SUMMARY: <vul_summary>" and "STRATEGY_SUMMARY: <strat_summary>"."""
-    # vul_prompt_base = """Given the following information from a vulnerability-fixing commit, generate a one-sentence summary of the vulnerability being fixed.  Do NOT include the patch content in your summary. Focus on describing the vulnerability itself. Omit implementation-specific details unless they are critical to understanding the vulnerability, e.g., if the vulnerability is due to a specific function call or library usage."""
-
+    prompt_base = """Given the following information from a vulnerability-fixing commit, generate 1) a concise, detailed 1 to 2 sentence-long summary of the vulnerability being fixed, and 2) a concise, detailed 1 to 2 sentence-long summary of the strategy being used to repair the vulnerability.  Do NOT include the patch content in your summaries. Focus on decribing the vulnerabililty itself, and the repair strategy, respecively. Omit implementation-specific details unless they are critical to the vulnerability or repair, e.g.,  if the vulnerability is due to a specific function call or library usage, or the repair is done by adding a function call from a security library. Output the summariies like this: "VUL_SUMMARY: <vul_summary>" and "STRATEGY_SUMMARY: <strat_summary>"."""
 
 if prompt_mode == "semantic":
     prompt_base = """
-Given the following information from a vulnerability-fixing commit, generate 1) a one-sentence summary of the vulnerability being fixed, and 2) a one-sentence summary of the repair strategy being used to repair the vulnerability. 
+Given the following information from a vulnerability-fixing commit, generate 1) a concise, detailed 1 to 2 sentence-long summary of the vulnerability being fixed, and 2)a concise, detailed 1 to 2 sentence-long summary of the repair strategy being used to repair the vulnerability. 
 
 Do NOT include the patch content in your summary. Do NOT include implementation details, library or parser names, or code-specific content.
 
@@ -137,14 +127,6 @@ Make summaries generalizable so that semantically similar vulnerabilities can be
 
 Output the summariies like this: "VUL_SUMMARY: <vul_summary>" and "STRATEGY_SUMMARY: <strat_summary>".
 """
-
-# vul_summary_prompt_base_orig = """Given the following information from a vulnerability-fixing commit, generate a one-sentence summary of the vulnerability being fixed.  Do NOT include the patch content in your summary. Focus on describing the vulnerability itself."""
-# vul_summary_prompt_base_hybrid = """Given the following information from a vulnerability-fixing commit, generate a one-sentence summary of the vulnerability being fixed.  Do NOT include the patch content in your summary. Focus on describing the vulnerability itself. Omit implementation-specific details unless they are critical to understanding the vulnerability, e.g., if the vulnerability is due to a specific function call or library usage."""
-    # vul_prompt_base = """Given the following information from a vulnerability-fixing commit, generate a one-sentence summary of the vulnerability being fixed. Focus on describing the nature of the vulnerability (e.g., "improper input validation leading to potential remote code execution", "use of unsafe deserialization", "buffer overflow due to unchecked array access").
-    # Do NOT include the patch content in your summary.
-    # Do NOT include implementation details, library or parser names, or code-specific content.
-    # Summaries should emphasize the underlying issue rather than specific code constructs, making them generalizable across different contexts.
-    # """
 
 def build_prompt(patch: str, cwe_id: str, commit_message: str) -> str:
     prompt = f"""{prompt_base} 
@@ -230,11 +212,8 @@ def filter_by_language(df, language_column, target_language):
         if pd.isna(languages):
             return False
         if isinstance(languages, str) and languages.startswith("[") and languages.endswith("]"):
-            # print(f"Parsing languages list: {languages}")
             languages_list = languages.strip("[]").split(",")
             languages_list = [lang.strip().strip("'\"") for lang in languages_list]
-            # print(f"Parsed languages: {languages_list}")
-            # print("Target language in list? ", target_language in languages_list)
             return target_language in languages_list
         elif isinstance(languages, str):
             return languages.strip() == target_language
@@ -251,35 +230,33 @@ if args.resume_from:
     print(f"Found {len(existing_summaries_df)} existing summaries in {args.resume_from}")
     current_index = len(existing_summaries_df) // args.num_variants - 1  # Calculate the index of the last processed commit based on the number of variants
     print(f"Resuming from index {current_index} (skipping {len(existing_summaries_df)} summaries)")
+
 examples_csv_file = args.input
 dataset_name = os.path.basename(examples_csv_file).split(".")[0]
 df = pd.read_csv(examples_csv_file)
+
 # Every patch appears twice in the dataset, once with a commit message and once without. We will drop the duplicates based on the patch content, keeping the one with the commit message if it exists.
 print(f"Number of rows before dropping duplicates: {len(df)}")
 df = df.sort_values(by=args.commit_message_column, na_position='last').drop_duplicates(subset=args.patch_column, keep='first').reset_index(drop=True)
 print(f"Number of rows after dropping duplicates: {len(df)}")
 print(df.info())
-# print(df.info())
+
 if args.target_language:
     print(df[args.language_column].apply(lambda x: type(x)).value_counts())
     # Look at the instances of type float - these are likely NaN values. We can fill them with empty lists or empty strings before applying the filter.
     print(f"Number of NaN values in language column before filling: {df[args.language_column].isna().sum()}")
     df[args.language_column] = df[args.language_column].fillna("[]")  # Fill NaN with empty list representation
     df = filter_by_language(df, args.language_column, args.target_language)
-    print("numbe rof rows after filtering by language: ", len(df))
+    print("number of rows after filtering by language: ", len(df))
     print(df[args.language_column].value_counts())
 
-# if args.single_file_only:
-#     df = df[df[args.multi_file_column] == False]
-# if args.single_function_only:
-#     df = df[df[args.single_function_column] == True]
     
 # Sanitize model name for use in filename (replace invalid Windows filename characters)
 safe_model_name = model_name.replace(":", "_").replace("/", "_").replace("\\", "_")
 
 output_dir = f"../summaries/{provider}/{safe_model_name}/{prompt_mode}"
+
 # Ensure the output directory exists (create any missing parent directories).
-# os.makedirs with exist_ok=True handles the check and recursion in one call.
 os.makedirs(output_dir, exist_ok=True)
 
 if args.resume_from:
@@ -305,7 +282,7 @@ with open(output_file, "a+") as f:
             break
         patch = row[args.patch_column]
         cwe_id = row[args.cwe_column]
-        # cve_id = row[args.cve_column]
+        cve_id = row[args.cve_column]
         commit_message = row[args.commit_message_column]
         # multi = row[args.multi_file_column]
         
@@ -315,9 +292,11 @@ with open(output_file, "a+") as f:
             elif provider == "openai":
                 responses, logs, empty_counter = generate_summaries_openai(patch, cwe_id, commit_message, empty_counter, k=args.num_variants)
 
+            # print(f"Responses: {responses}")
             for i in range(len(responses)):
+                # print("here")
                 record = {
-                    # "cve_id": cve_id,
+                    "cve_id": cve_id,
                     "cwe_id": cwe_id,
                     # "multi_file": multi,
                     "variant_id": logs[i]["variant_id"],
@@ -327,7 +306,9 @@ with open(output_file, "a+") as f:
                     "summary": responses[i]
                 }
                 # print(f"Record's summary : {record.get('summary')}")
+                print(record)
                 f.write(json.dumps(record) + "\n")
+                f.flush()
             processed_count += 1
             print(f"Processed {processed_count}/{max_iters} ")
         except (OllamaResponseError, Exception) as e:
