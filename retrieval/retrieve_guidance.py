@@ -1,6 +1,6 @@
 from openai import OpenAI
 from ollama import Client as OllamaClient
-from typing import Optional
+from typing import Any, Optional
 from dotenv import load_dotenv
 from argparse import ArgumentParser
 import json

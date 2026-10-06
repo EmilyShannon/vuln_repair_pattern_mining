@@ -20,8 +20,9 @@ import json
 import os
 import random
 
-PATH_TO_PROMPT_TEMPLATES = "/home/emsha/projects/vuln_repair_pattern_mining/eval/llm_based_repair_prompt_templates.json"
-PATH_TO_ACCEPTED_CWES = "/home/emsha/projects/vuln_repair_pattern_mining/data/analysis/allowed_mappable_cwes.txt"
+# Keep repository and installed-package resource paths independent of the caller's cwd.
+PATH_TO_PROMPT_TEMPLATES = Path(__file__).resolve().with_name("llm_based_repair_prompt_templates.json")
+PATH_TO_ACCEPTED_CWES = Path(__file__).resolve().parents[1] / "data" / "analysis" / "allowed_mappable_cwes.txt"
 
 with open(PATH_TO_PROMPT_TEMPLATES, "r") as f:
     prompt_templates = json.load(f).get("prompt_templates", []) 
