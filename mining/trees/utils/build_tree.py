@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
+from pandas import DataFrame
 from openai import OpenAI
 from dotenv import load_dotenv
 
