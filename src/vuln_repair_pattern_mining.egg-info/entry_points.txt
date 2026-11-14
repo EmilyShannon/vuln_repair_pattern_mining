@@ -1,6 +1,0 @@
-[console_scripts]
-vulnrepair-data = vulnrepair.cli.data:main
-vulnrepair-evaluate = vulnrepair.cli.evaluate:main
-vulnrepair-guidance = vulnrepair.cli.guidance:main
-vulnrepair-repair = vulnrepair.cli.repair:main
-
