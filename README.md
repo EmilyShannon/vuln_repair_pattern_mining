@@ -34,7 +34,73 @@ The other package interfaces are organized under `vulnrepair.guidance`,
 `vulnrepair.retrieval`, `vulnrepair.repair`, and `vulnrepair.evaluation`. For
 example, `Repairer` accepts an `LLMClient` and a `RepairRequest`; API keys and
 Ollama connection settings continue to use the existing environment variables.
-The guidance-tree builder retains its existing input and return format.
+
+Summary generation is available separately under `vulnrepair.summary`; it is
+not invoked automatically by guidance-tree generation. Pass a patch and its
+metadata in a `SummaryGenerationRequest`. The generator returns one result per
+requested variant, including the generated text, prompt, and token counts when
+the provider supplies them:
+
+```python
+from vulnrepair.summary import SummaryGenerationRequest, SummaryGenerator
+
+generator = SummaryGenerator(provider="openai", model="gpt-5.1")
+summaries = generator.generate(
+    SummaryGenerationRequest(
+        patch="The patch text...",
+        cwe_id="CWE-79",
+        commit_message="Validate user input before rendering",
+        num_variants=3,
+        prompt_mode="semantic",
+    )
+)
+for result in summaries:
+    print(result.summary)
+```
+
+Supported providers are `openai` and `ollama`; prompt modes are `orig`,
+`hybrid`, and `semantic`. The provider's API key or connection settings use the
+existing environment variables. Call this API explicitly before tree building
+when summaries are needed.
+
+To generate a guidance tree, pass `GuidanceGenerator.generate` a
+`GuidanceGenerationRequest`. Its `patches` must be a pandas DataFrame with a
+`patch_id` column; `summary` and `patch` columns are also used when present.
+`prepare_patches_from_summary_files` converts the existing summary-record format
+to this DataFrame shape. `TreeConfig` is available from the public guidance API.
+Its fields and defaults are `min_group_size=1`, `max_group_size=6`,
+`min_nodes_to_continue=1`, `max_depth=10`, `force_merge_threshold=2`,
+`temperature=0.0`, `model="gpt-5"`, `provider="openai"`,
+`tree_type="combined"`, and `max_tokens=100000`.
+
+```python
+import pandas as pd
+from mining.trees.utils.build_tree import prepare_patches_from_summary_files
+from vulnrepair.guidance import (
+    GuidanceGenerationRequest,
+    GuidanceGenerator,
+    TreeConfig,
+)
+
+summary_records = pd.read_json("data/summaries.jsonl", lines=True)
+patches = prepare_patches_from_summary_files(summary_records)
+
+root, nodes, depth = GuidanceGenerator().generate(
+    GuidanceGenerationRequest(
+        patches=patches,
+        config=TreeConfig(
+            max_depth=8,
+            provider="openai",
+            model="gpt-5",
+            tree_type="combined",
+        ),
+        cwe_id="CWE-79",
+    )
+)
+```
+
+The guidance-tree builder retains its existing tree-building behavior and
+`(root, nodes, depth)` return format.
 
 ## Command line
 
