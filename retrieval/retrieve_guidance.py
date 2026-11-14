@@ -7,9 +7,6 @@ import json
 import os
 import pandas as pd
 
-# load_dotenv()
-# client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
-# TODO makke llm calling and response extraction utilities for both files to use
 def extract_ollama_response(response: Any) -> str:
     if response is None:
         return ""
@@ -63,22 +60,14 @@ def process_vulnerable_code(client, provider, model, code: str, cwe_id: str, det
             input=[{"role": "user", "content": prompt}],
         )
         return response.output_text.strip()
-    if provider == "ollama":
+    elif provider == "ollama":
         try:
             response = client.generate(model=model, prompt=prompt)
         except Exception as exc:
             return f"[ollama error: {exc}]"
         return extract_ollama_response(response)
-    raise ValueError(f"Unsupported provider: {provider}")
-    # response = client.responses.create(
-    #     model="gpt-5",
-    #     input=[
-    #         {
-    #             "role": "user",
-    #             "content": prompt
-    #         }
-    #     ],
-    # )
+    else:
+        raise ValueError(f"Unsupported provider: {provider}")
     return response.output_text.strip()
 
 
@@ -104,7 +93,7 @@ def retrieve_most_similar_summary(client, provider, model, tree: str, vuln_code_
             input=[{"role": "user", "content": prompt}],
         )
         output = response.output_text.strip()
-    if provider == "ollama":
+    elif provider == "ollama":
         try:
             response = client.generate(model=model, prompt=prompt)
         except Exception as exc:
