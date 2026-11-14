@@ -3,6 +3,24 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..data.models import VulnerabilityDataset
+
+
+@dataclass
+class TreeConfig:
+    """Configuration options for building a guidance tree."""
+
+    min_group_size: int = 1
+    max_group_size: int = 6
+    min_nodes_to_continue: int = 1
+    max_depth: int = 10
+    force_merge_threshold: int = 2
+    temperature: float = 0.0
+    model: str = "gpt-4o"
+    provider: str = "openai"
+    tree_type: str = "combined"
+    max_tokens: int = 100000
+
 
 @dataclass
 class RepairGuidance:
@@ -32,8 +50,7 @@ class GuidanceTree:
 
 @dataclass
 class GuidanceGenerationRequest:
-    patches: Any
-    config: Any = None
+    patches: VulnerabilityDataset | None = None
+    config: TreeConfig | None = None
     cwe_id: str | None = None
     output_path: str | None = None
-

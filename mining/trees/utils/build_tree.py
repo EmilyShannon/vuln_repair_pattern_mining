@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from pandas import DataFrame
 from openai import OpenAI
 from dotenv import load_dotenv
+from vulnrepair.guidance.models import TreeConfig
 
 load_dotenv() 
 
@@ -31,22 +32,6 @@ load_dotenv()
 # =========================
 #  CONFIGURATION
 # =========================
-
-@dataclass
-class TreeConfig:
-    """Configuration for tree building - controls grouping behavior"""
-    min_group_size: int = 1
-    max_group_size: int = 6
-    min_nodes_to_continue: int = 1  # Stop abstracting if fewer nodes
-    max_depth: int = 10  # Safety limit
-    force_merge_threshold: int = 2  # Force merge if nodes <= this
-    
-    # LLM settings for stability
-    temperature: float = 0.0
-    model: str = "gpt-5"
-    provider: str = "openai"
-    tree_type: str = "combined"  # or "vulnerability"
-    max_tokens: int = 100000
 
 # =========================
 #  DATA STRUCTURES
@@ -129,12 +114,6 @@ def generate_response(config, prompt):
             temperature=config.temperature,
             input=prompt,
             max_output_tokens=config.max_tokens,
-            reasoning={
-                "effort": "high"
-            },
-            text={
-                "verbosity": "high"
-            },
         )
 
         return response.output_text
@@ -800,12 +779,19 @@ Guidance:
     except Exception as e:
         print(f"[Guidance] Error at depth {current_depth}: {e}")
         
-        if strategies:
-            label = enforce_word_limit(strategies[0], 15)
-            summary = shorten(strategies[0], 80)
+        if group_labels:
+            label = enforce_word_limit(group_labels[0], 15)
+            summary = shorten(group_labels[0], 80)
         else:
-            label = enforce_word_limit(f"Group of {len(children)} nodes", 15)
-            summary = f"[FALLBACK] Vulnerability repair patterns across {len(children)} related cases"
+            fallback_summary = " ".join(child_summaries).strip()
+            label = enforce_word_limit(
+                fallback_summary or f"Group of {len(children)} nodes", 15
+            )
+            summary = shorten(
+                fallback_summary
+                or f"Vulnerability repair patterns across {len(children)} related cases",
+                80,
+            )
 
         guidance = "[FALLBACK] Apply defensive validation and constrain unsafe behavior through consistent repair safeguards."
         return label, summary, guidance
