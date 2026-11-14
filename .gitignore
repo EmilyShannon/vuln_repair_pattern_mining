@@ -39,3 +39,7 @@ mining/__pycache__
 mining/trees
 !mining/trees/utils
 retrieval/caches
+tests/artifacts
+**/lib
+build 
+**/*.egg-info/**
